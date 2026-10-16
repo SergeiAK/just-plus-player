@@ -2582,11 +2582,11 @@ public class PlayerActivity extends Activity {
         final HorizontalScrollView horizontalScrollView = (HorizontalScrollView) getLayoutInflater().inflate(R.layout.controls, null);
         final LinearLayout controls = horizontalScrollView.findViewById(R.id.controls);
 
-        // Multimedia pickers, each shown when relevant, live in the bottom bar on every device. Order per
-        // the design: quality, audio, subtitles, playlist.
-        controls.addView(buttonQuality);
-        controls.addView(buttonAudio);
+        // Multimedia pickers, each shown when relevant, live in the bottom bar on every device. Order:
+        // subtitles, audio, quality, playlist - the ones reached for most during a film come first.
         controls.addView(exoSubtitle);
+        controls.addView(buttonAudio);
+        controls.addView(buttonQuality);
         controls.addView(buttonPlaylist);
         if (mPrefs.repeatToggle) {
             controls.addView(exoRepeat);
