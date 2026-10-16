@@ -1,5 +1,7 @@
 # Just+ Player
 
+> **Personal fork.** This is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
+
 [![Latest release](https://img.shields.io/github/v/release/just-plus-player/just-plus-player?logo=github&logoColor=white&cacheSeconds=3600)](https://github.com/just-plus-player/just-plus-player/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/just-plus-player/just-plus-player/total?logo=github&logoColor=white&label=downloads&cacheSeconds=3600)](https://github.com/just-plus-player/just-plus-player/releases)
 [![Media3](https://img.shields.io/badge/Media3-1.11.0-007ec6?cacheSeconds=3600)](https://github.com/androidx/media/releases/tag/1.11.0)
