@@ -836,18 +836,6 @@
 
             </PreferenceCategory>
 
-            <!-- Its own group, so the badge gets a card of its own rather than joining the one above:
-                 a titleless category is the list's own way of saying "a new card starts here". -->
-            <PreferenceCategory>
-
-                <Preference
-                    app:key="aboutStand"
-                    app:layout="@layout/preference_stand_with_ukraine"
-                    app:persistent="false"
-                    app:selectable="false" />
-
-            </PreferenceCategory>
-
         </PreferenceScreen>
 
     </PreferenceCategory>

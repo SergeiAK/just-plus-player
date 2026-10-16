@@ -555,11 +555,6 @@
     <string name="about_developer" translatable="false">@levende</string>
     <string name="about_github_repo" translatable="false">github.com/just-plus-player/just-plus-player</string>
 
-
-    <!-- The badge is lettered in English wherever the app is read. -->
-    <string name="stand_with" translatable="false">STAND WITH</string>
-    <string name="stand_ukraine" translatable="false">UKRAINE</string>
-
     <plurals name="browse_videos">
         <item quantity="one">%d video</item>
         <item quantity="other">%d videos</item>

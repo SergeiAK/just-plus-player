@@ -48,10 +48,6 @@
          draws the same tile the launcher does. -->
     <color name="app_icon_ground">#FF150B33</color>
 
-    <!-- The flag, at its published values. A badge rather than a palette entry: nothing else in the
-         app reads these, and nothing else should. -->
-    <color name="ua_blue">#FF0057B7</color>
-    <color name="ua_yellow">#FFFFD700</color>
     <!-- M3 on-primary: the ink that sits on the brand, e.g. the switch handle when it is on. -->
     <color name="brand_on">#FF5F1411</color>
 

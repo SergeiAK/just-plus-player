@@ -705,14 +705,6 @@ public class SettingsActivity extends AppCompatActivity
                 crashReporting.setVisible(false);
             }
 
-            final Preference stand = findPreference("aboutStand");
-            if (stand != null && Utils.isTvBox(requireContext())) {
-                // The badge is the last thing on the screen and does nothing, so a remote would stop at
-                // the row above it and never scroll far enough to show it. Selectable on a television
-                // for the same reason the decoder warning is: a D-pad only reaches what it can land on.
-                stand.setSelectable(true);
-            }
-
             Preference sendAppLog = findPreference("sendAppLog");
             if (sendAppLog != null) {
                 sendAppLog.setOnPreferenceClickListener(preference -> {
