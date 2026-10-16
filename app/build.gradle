@@ -41,7 +41,7 @@ android {
 
     defaultConfig {
         def abiFilter = project.findProperty("abiFilter")
-        applicationId "com.justplus.player"
+        applicationId "com.justplus.player.fork"
         minSdkVersion 23
         targetSdkVersion 36
         versionCode tagVersionCode
