@@ -544,7 +544,7 @@
     <string name="pref_about_device">Device info</string>
 
     <string name="about_github" translatable="false">GitHub</string>
-    <string name="about_github_url" translatable="false">https://github.com/just-plus-player/just-plus-player</string>
+    <string name="about_github_url" translatable="false">https://github.com/SergeiAK/just-plus-player</string>
 
     <string name="about_github_qr">Scan with a phone camera to open the project page.</string>
 
@@ -553,7 +553,7 @@
     <string name="pref_about_source">Source code</string>
 
     <string name="about_developer" translatable="false">@levende</string>
-    <string name="about_github_repo" translatable="false">github.com/just-plus-player/just-plus-player</string>
+    <string name="about_github_repo" translatable="false">github.com/SergeiAK/just-plus-player</string>
 
     <plurals name="browse_videos">
         <item quantity="one">%d video</item>
