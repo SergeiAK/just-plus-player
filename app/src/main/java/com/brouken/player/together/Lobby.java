@@ -7,6 +7,7 @@ import org.json.JSONObject;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +89,8 @@ final class Lobby {
                 rooms = new ArrayList<>(found.values());
             }
             // Busiest first: an empty room is the least useful thing to offer.
-            rooms.sort((a, b) -> b.optInt("members") - a.optInt("members"));
+            // Collections.sort rather than List.sort: the latter is API 24 and minSdk is 23.
+            Collections.sort(rooms, (a, b) -> b.optInt("members") - a.optInt("members"));
             callback.onRooms(rooms);
         }, COLLECT_MS);
     }
