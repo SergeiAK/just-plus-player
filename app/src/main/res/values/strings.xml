@@ -17,6 +17,12 @@
     <string name="browse_empty">No videos in this folder.</string>
     <string name="browse_view">View</string>
     <string name="browse_exit">Exit</string>
+    <string name="browse_home">Start page</string>
+    <string name="browse_sort">Sort</string>
+    <string name="browse_sort_name">Name, A to Z</string>
+    <string name="browse_sort_name_desc">Name, Z to A</string>
+    <string name="browse_sort_date">Newest first</string>
+    <string name="browse_sort_date_asc">Oldest first</string>
     <string name="browse_search">Search</string>
     <string name="browse_no_matches">Nothing here matches that.</string>
     <string name="browse_no_matches_folder">Nothing in this folder matches that.</string>

@@ -152,6 +152,26 @@
          one definition of it. §2.5 of DESIGN.md records four separate times a restated set shipped
          with a hole in it, and every one of them arrived as M3's #6750A4. -->
     <style name="Theme.Browser" parent="BaseTheme.Settings">
+        <!-- The bar's buttons, the overflow dots and the back arrow: an accent disc under the one in
+             focus. See bg_toolbar_item. -->
+        <item name="actionBarItemBackground">@drawable/bg_toolbar_item</item>
+        <item name="toolbarNavigationButtonStyle">@style/Widget.JustPlus.Toolbar.Navigation</item>
+        <!-- The menu's own buttons read their background off their style, not off the attribute above:
+             measured on the Dune, the arrow took the disc and every other button kept Material's grey. -->
+        <item name="actionButtonStyle">@style/Widget.JustPlus.Toolbar.ActionButton</item>
+        <item name="actionOverflowButtonStyle">@style/Widget.JustPlus.Toolbar.Overflow</item>
+    </style>
+
+    <style name="Widget.JustPlus.Toolbar.ActionButton" parent="Widget.AppCompat.ActionButton">
+        <item name="android:background">@drawable/bg_toolbar_item</item>
+    </style>
+
+    <style name="Widget.JustPlus.Toolbar.Overflow" parent="Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:background">@drawable/bg_toolbar_item</item>
+    </style>
+
+    <style name="Widget.JustPlus.Toolbar.Navigation" parent="Widget.AppCompat.Toolbar.Button.Navigation">
+        <item name="android:background">@drawable/bg_toolbar_item</item>
     </style>
 
     <!-- The overflow menu, wearing the app's own container instead of Material's 4dp default. -->

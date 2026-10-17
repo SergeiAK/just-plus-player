@@ -922,6 +922,29 @@ class Prefs {
                 .putString("browseView", view).apply();
     }
 
+    /**
+     * How the browser orders one folder: {@code name}, {@code name_desc}, {@code date} (newest
+     * first) or {@code date_asc}. Kept per folder, in a file of its own so the folders a viewer has
+     * ever re-sorted do not crowd the settings: "Downloads" wants the newest first, a season wants
+     * its episodes by name, and both are what they were the next time.
+     */
+    public static String browseOrder(final Context context, final String folder) {
+        return context.getSharedPreferences("browse_order", Context.MODE_PRIVATE)
+                .getString(folder, "name");
+    }
+
+    public static void setBrowseOrder(final Context context, final String folder, final String order) {
+        final android.content.SharedPreferences.Editor editor =
+                context.getSharedPreferences("browse_order", Context.MODE_PRIVATE).edit();
+        // The default is not written down: a folder put back to it is a folder never re-sorted.
+        if ("name".equals(order)) {
+            editor.remove(folder);
+        } else {
+            editor.putString(folder, order);
+        }
+        editor.apply();
+    }
+
     public static boolean isAmoledBlack(final Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context)
                 .getBoolean(PREF_KEY_AMOLED, false);

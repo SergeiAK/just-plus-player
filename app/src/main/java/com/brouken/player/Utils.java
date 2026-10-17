@@ -603,6 +603,7 @@ public class Utils {
     static FrameLayout previewBox(final Context ctx, final int cornerPx, final int glyphPx) {
         // Here because every still in the app is built here, and it is a no-op after the first.
         VideoThumbs.register(ctx);
+        NetworkThumbs.register(ctx);
         final FrameLayout box = new FrameLayout(ctx);
         box.setBackgroundColor(MaterialColors.getColor(ctx, R.attr.colorSurfaceContainerHighest,
                 ContextCompat.getColor(ctx, R.color.thumb_box)));
@@ -666,6 +667,15 @@ public class Utils {
      */
     static void bindPreview(final FrameLayout box, final Uri artwork, final Uri media,
                             final int glyphRes, final int glyphPx) {
+        bindPreview(box, artwork, media, glyphRes, glyphPx, false);
+    }
+
+    /**
+     * @param overNetwork whether a file on a share may be read for a frame of itself - the browser's
+     *                    rows and tiles, and nowhere a video is playing (see {@link NetworkThumbs})
+     */
+    static void bindPreview(final FrameLayout box, final Uri artwork, final Uri media,
+                            final int glyphRes, final int glyphPx, final boolean overNetwork) {
         // The same file as last time is the common case, not the exception: a list re-lists itself on
         // every arrival - coming back from the player, coming back from Settings - and clearing a
         // poster that already holds the right frame is a blank row for as long as the decode takes.
@@ -696,7 +706,8 @@ public class Utils {
         backdrop.setImageDrawable(null);
         backdrop.setVisibility(View.GONE);
 
-        final Uri source = artwork != null ? artwork : frameSource(media);
+        final Uri source = artwork != null ? artwork
+                : overNetwork && NetworkThumbs.speaks(media) ? media : frameSource(media);
         if (source == null) {
             poster.setVisibility(View.GONE);
             return;

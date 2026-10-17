@@ -13,6 +13,15 @@
         app:actionViewClass="androidx.appcompat.widget.SearchView"
         app:showAsAction="always|collapseActionView" />
 
+    <!-- Back to where the destinations are, from however deep the trail goes. Beside Search because
+         that is where a remote already is when it wants out: share, films, year, series, season is
+         five presses of Back otherwise. Only shown once there is a trail to leave. -->
+    <item
+        android:id="@+id/browse_go_home"
+        android:icon="@drawable/ic_home_24dp"
+        android:title="@string/browse_home"
+        app:showAsAction="always" />
+
     <!-- The folder being stood in, put aside or taken back out. In the bar because it is one press
          and because a remote can reach a bar item and cannot reach a long press it does not know
          about; the glyph is set in code, since it says which of the two states the folder is in.
@@ -33,6 +42,15 @@
         android:icon="@drawable/ic_add_24dp"
         android:title="@string/browse_add_network"
         app:showAsAction="ifRoom" />
+
+    <!-- How this folder is ordered: by name or by date, either way round, remembered per folder. In
+         the bar beside the view, because the two answer the same question - how is this folder laid
+         out - and a press opens the four orders as a list. -->
+    <item
+        android:id="@+id/browse_sort"
+        android:icon="@drawable/ic_sort_24dp"
+        android:title="@string/browse_sort"
+        app:showAsAction="always" />
 
     <!-- How the folder is drawn. In the bar and not behind the dots: it is looked at often, it is
          one press, and the glyph is the answer to "which view am I in" as well as the way out of it.

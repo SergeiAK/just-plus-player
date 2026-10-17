@@ -525,6 +525,12 @@
     <string name="pref_remove_hdr10_plus_off">Рядом с Dolby Vision остаётся HDR10+, решит экран</string>
     <string name="browse_view">Вид</string>
     <string name="browse_exit">Выйти</string>
+    <string name="browse_home">На стартовую страницу</string>
+    <string name="browse_sort">Сортировка</string>
+    <string name="browse_sort_name">По имени, А → Я</string>
+    <string name="browse_sort_name_desc">По имени, Я → А</string>
+    <string name="browse_sort_date">Сначала новые</string>
+    <string name="browse_sort_date_asc">Сначала старые</string>
     <string name="sleep_timer_less">На пять минут меньше</string>
     <string name="sleep_timer_more">На пять минут больше</string>
     <string name="pref_browser_header">Браузер файлов</string>

@@ -94,16 +94,38 @@
 
         <!-- What the file is, as a line of text rather than as two boxes: a value is text unless it
              is pickable, and a plate around a number is a frame nothing needs. -->
-        <TextView
-            android:id="@+id/browse_row_meta"
+        <!-- The date has a column of its own at the end of the line: in a folder sorted by date it is
+             what the eye runs down, and at the end of a joined line it started wherever the size
+             before it happened to stop. gravity end keeps it there when the line has nothing else. -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?android:attr/textColorSecondary"
-            android:visibility="gone" />
+            android:gravity="end|center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/browse_row_meta"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?android:attr/textColorSecondary"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/browse_row_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:singleLine="true"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?android:attr/textColorSecondary"
+                android:visibility="gone" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

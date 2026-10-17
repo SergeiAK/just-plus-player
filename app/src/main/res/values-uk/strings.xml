@@ -525,6 +525,12 @@
     <string name="pref_remove_hdr10_plus_off">Поряд лишається й HDR10+, а обере його вже екран</string>
     <string name="browse_view">Вигляд</string>
     <string name="browse_exit">Вийти</string>
+    <string name="browse_home">На стартову сторінку</string>
+    <string name="browse_sort">Сортування</string>
+    <string name="browse_sort_name">За назвою, А → Я</string>
+    <string name="browse_sort_name_desc">За назвою, Я → А</string>
+    <string name="browse_sort_date">Спочатку нові</string>
+    <string name="browse_sort_date_asc">Спочатку старі</string>
     <string name="sleep_timer_less">На п’ять хвилин менше</string>
     <string name="sleep_timer_more">На п’ять хвилин більше</string>
     <string name="pref_browser_header">Браузер файлів</string>

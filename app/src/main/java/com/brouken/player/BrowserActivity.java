@@ -24,6 +24,7 @@ import android.os.storage.StorageVolume;
 import android.provider.MediaStore;
 import android.text.InputType;
 import android.text.format.DateUtils;
+import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.util.TypedValue;
 import android.os.SystemClock;
@@ -235,12 +236,13 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
      */
     private final Map<String, Uri> stills = new HashMap<>();
     /**
-     * The day a file was written, in the shortest form the viewer's locale has for one: dd.MM.yy in
-     * Russian, MM/dd/yy in American English. Built once - a formatter per bound row is a formatter
-     * per row of a folder of five thousand.
+     * The day a file was written, numeric and in the viewer's locale's order: dd.MM.yyyy in Russian,
+     * MM/dd/yyyy in American English. The year in full now that the date has a column of its own at
+     * the end of the row and no longer pushes the rest of the line off it. Built once - a formatter
+     * per bound row is a formatter per row of a folder of five thousand.
      */
     private final SimpleDateFormat shortDate = new SimpleDateFormat(
-            android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "ddMMyy"),
+            android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "ddMMyyyy"),
             Locale.getDefault());
     /** How a folder is drawn: one of {@code rows}, {@code tiles}, {@code columns}. */
     private String view = "rows";
@@ -586,6 +588,12 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
             favorite.setIcon(saved ? R.drawable.ic_star_24dp : R.drawable.ic_star_outline_24dp);
             favorite.setTitle(saved ? R.string.browse_favorite_remove : R.string.browse_favorite_add);
         }
+        // On a television the start page is the place to go back to from anywhere, the top of a
+        // destination included; elsewhere the top of the destination is, so the button waits for a
+        // folder to stand in.
+        menu.findItem(R.id.browse_go_home).setVisible(tv ? !picker : here != null);
+        // Only inside a folder: a list of volumes, shares or favourites is in the order it was made.
+        menu.findItem(R.id.browse_sort).setVisible(dest != Dest.IPTV && here != null && query == null);
         menu.findItem(R.id.browse_open_link).setVisible(!picker);
         menu.findItem(R.id.browse_join_room).setVisible(!picker);
         menu.findItem(R.id.browse_settings).setVisible(!picker);
@@ -607,11 +615,11 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
         // drawables, which the controls over video still want white, and here rather than at
         // inflation, because the star and the view glyph are swapped for another white one every
         // time this runs. The colour is the one the three dots beside them already use.
-        final int glyph = MaterialColors.getColor(this, R.attr.colorOnSurfaceVariant, Color.WHITE);
+        final ColorStateList glyphs = barGlyphs();
         for (int index = 0; index < menu.size(); index++) {
             final Drawable icon = menu.getItem(index).getIcon();
             if (icon != null) {
-                icon.mutate().setTint(glyph);
+                icon.mutate().setTintList(glyphs);
             }
         }
         return super.onPrepareOptionsMenu(menu);
@@ -630,6 +638,16 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
         if (item.getItemId() == R.id.browse_view) {
             chooseView(nextView());
             invalidateOptionsMenu();
+            return true;
+        }
+        if (item.getItemId() == R.id.browse_go_home) {
+            goHome();
+            return true;
+        }
+        if (item.getItemId() == R.id.browse_sort) {
+            if (!trail.isEmpty()) {
+                chooseOrder(trail.get(trail.size() - 1).file);
+            }
             return true;
         }
         if (item.getItemId() == R.id.browse_settings) {
@@ -1491,6 +1509,31 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
     }
 
     /**
+     * A bar glyph's ink: the secondary ink at rest, and the accent's own ink on the accent disc that
+     * bg_toolbar_item draws under the focused one - the dim ink on the coral read as a smudge.
+     */
+    private ColorStateList barGlyphs() {
+        return new ColorStateList(
+                new int[][]{ { android.R.attr.state_focused }, {} },
+                new int[]{ MaterialColors.getColor(this, R.attr.accentOnFill, Color.WHITE),
+                        MaterialColors.getColor(this, R.attr.colorOnSurfaceVariant, Color.WHITE) });
+    }
+
+    /**
+     * Straight out of the trail in one press: on a television to the start page, elsewhere to the top
+     * of the destination, which is where the bar or the rail switches from.
+     */
+    private void goHome() {
+        if (tv && !picker) {
+            trail.clear();
+            query = null;
+            showHome();
+        } else {
+            choose(dest);
+        }
+    }
+
+    /**
      * Puts the destinations where this window can reach them: the bar under 600dp, the rail from
      * 600dp, and on a television neither - the start page's cards do it there, because a remote has
      * no thumb to reach a bar with. A picker gets none of the three.
@@ -2203,6 +2246,12 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
         }
         final int floor = volumeIsRoot ? 1 : 0;
         actionBar.setDisplayHomeAsUpEnabled(picker || tv || trail.size() > floor);
+        // The arrow is set by the line above, so it is inked here: white on the focus disc, like the
+        // rest of the bar (barGlyphs).
+        final MaterialToolbar arrowBar = findViewById(R.id.browse_toolbar);
+        if (arrowBar != null && arrowBar.getNavigationIcon() != null) {
+            arrowBar.getNavigationIcon().mutate().setTintList(barGlyphs());
+        }
     }
 
     /** Whether a fresh listing is the same files in the same order as the ones already bound. */
@@ -2416,8 +2465,8 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
                 }
             }
         }
-        Collections.sort(folders, (a, b) -> Utils.compareNatural(a.name, b.name));
-        Collections.sort(files, (a, b) -> Utils.compareNatural(a.name, b.name));
+        order(folders, orderOf(folder));
+        order(files, orderOf(folder));
         folders.addAll(files);
         return folders;
     }
@@ -2517,10 +2566,81 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
             // A subtitle is not in the video index, so that listing has to be the walk.
             return null;
         }
-        Collections.sort(folders, (a, b) -> Utils.compareNatural(a.name, b.name));
-        Collections.sort(files, (a, b) -> Utils.compareNatural(a.name, b.name));
+        order(folders, Prefs.browseOrder(this, path));
+        order(files, Prefs.browseOrder(this, path));
         folders.addAll(files);
         return folders;
+    }
+
+    /**
+     * Sorts one kind of row - folders or files, never the two mixed - in the order the viewer chose.
+     * By date the newest comes first and a tie falls back to the name, so a folder copied in one go
+     * still reads in episode order.
+     *
+     * <p>Each date is read once here rather than inside the comparison, which would ask for it
+     * twice per comparison: for a file on the device that is a stat each time. A share has it from
+     * the listing, and the media index from its own cursor ({@link #dates}).
+     */
+    private void order(final List<Item> items, final String order) {
+        if (order.startsWith("name")) {
+            final boolean back = "name_desc".equals(order);
+            Collections.sort(items, (a, b) -> back
+                    ? Utils.compareNatural(b.name, a.name) : Utils.compareNatural(a.name, b.name));
+            return;
+        }
+        final boolean oldest = "date_asc".equals(order);
+        final Map<Item, Long> written = new HashMap<>();
+        for (final Item item : items) {
+            final Long indexed = dates.get(item.file.getUri().toString());
+            written.put(item, indexed != null ? indexed : item.file.lastModified());
+        }
+        Collections.sort(items, (a, b) -> {
+            final int newer = oldest ? Long.compare(written.get(a), written.get(b))
+                    : Long.compare(written.get(b), written.get(a));
+            return newer != 0 ? newer : Utils.compareNatural(a.name, b.name);
+        });
+    }
+
+    /**
+     * What a folder's order is remembered under. A path on the device, as the media index names the
+     * same folder - the two listings of it have to find the same answer; the whole address anywhere
+     * else, since /Movies on one share is not /Movies on another.
+     */
+    private static String orderKey(final DocumentFile folder) {
+        return "file".equals(folder.getUri().getScheme()) ? pathOf(folder) : folder.getUri().toString();
+    }
+
+    private String orderOf(final DocumentFile folder) {
+        return Prefs.browseOrder(this, orderKey(folder));
+    }
+
+    /**
+     * The four orders as a list to pick from, under the button that opened it. A list rather than a
+     * press that steps through them: four states behind one glyph is a guessing game on a remote.
+     */
+    private void chooseOrder(final DocumentFile folder) {
+        final View anchor = findViewById(R.id.browse_sort);
+        final androidx.appcompat.widget.PopupMenu popup = new androidx.appcompat.widget.PopupMenu(
+                this, anchor != null ? anchor : list, android.view.Gravity.END);
+        final String[] orders = { "name", "name_desc", "date", "date_asc" };
+        final int[] titles = { R.string.browse_sort_name, R.string.browse_sort_name_desc,
+                R.string.browse_sort_date, R.string.browse_sort_date_asc };
+        final String current = orderOf(folder);
+        for (int i = 0; i < orders.length; i++) {
+            popup.getMenu().add(1, i, i, titles[i]).setChecked(orders[i].equals(current));
+        }
+        popup.getMenu().setGroupCheckable(1, true, true);
+        popup.setOnMenuItemClickListener(picked -> {
+            final String chosen = orders[picked.getItemId()];
+            if (!chosen.equals(current)) {
+                Prefs.setBrowseOrder(this, orderKey(folder), chosen);
+                // Read again rather than reordered in place: the listing is where the dates are read,
+                // off the main thread, and a share answers it from what it already holds.
+                show();
+            }
+            return true;
+        });
+        popup.show();
     }
 
     /**
@@ -2556,8 +2676,16 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
                 final View held = tv ? list.getFocusedChild() : null;
                 final Item keep = held == null ? null : (Item) held.getTag();
                 rows.addAll(missing);
-                Collections.sort(rows, (a, b) -> a.folder == b.folder
-                        ? Utils.compareNatural(a.name, b.name) : a.folder ? -1 : 1);
+                final List<Item> folders = new ArrayList<>();
+                final List<Item> files = new ArrayList<>();
+                for (final Item row : rows) {
+                    (row.folder ? folders : files).add(row);
+                }
+                order(folders, orderOf(folder));
+                order(files, orderOf(folder));
+                rows.clear();
+                rows.addAll(folders);
+                rows.addAll(files);
                 if (list.getAdapter() != null) {
                     list.getAdapter().notifyDataSetChanged();
                 }
@@ -3176,6 +3304,9 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
         private final TextView path;
         private final TextView duration;
         private final TextView meta;
+        /** The date column at the end of the meta line; a tile has none. */
+        @Nullable
+        private final TextView date;
         private final ImageView star;
         private final FrameLayout box;
         private final FrameLayout frame;
@@ -3188,8 +3319,16 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
             path = view.findViewById(R.id.browse_row_path);
             duration = view.findViewById(R.id.browse_row_duration);
             meta = view.findViewById(R.id.browse_row_meta);
+            date = view.findViewById(R.id.browse_row_date);
             star = view.findViewById(R.id.browse_row_star);
             frame = view.findViewById(R.id.browse_row_frame);
+            // The row the remote is on runs its name across when it does not fit; every other row keeps
+            // the ellipsis, so the list stays still and only the one being read moves.
+            name.setMarqueeRepeatLimit(-1);
+            view.setOnFocusChangeListener((v, focused) -> {
+                name.setEllipsize(focused ? TextUtils.TruncateAt.MARQUEE : TextUtils.TruncateAt.END);
+                name.setSelected(focused);
+            });
             // Built here and never again: a row is recycled, and making a new box, a new poster and a
             // new request on every bind is what redrew the whole list on every arrival.
             // R3: 8dp up to 56dp tall, 12dp for a card 72dp or taller. A row's still is 54dp on a
@@ -3210,6 +3349,9 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
                 name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
                 path.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
                 meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                if (date != null) {
+                    date.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                }
                 duration.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
             }
             // The plate every row inside a player panel wears, at the corner R3 gives a card this
@@ -3230,6 +3372,9 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
             itemView.setTag(item);
             duration.setVisibility(View.GONE);
             meta.setVisibility(View.GONE);
+            // A folder's date is the folder's own, read off the listing on a share and with one stat
+            // on the device - not what is inside it. A volume is the top of a tree and has none.
+            setDate(item.folder && !item.volume ? item.file.lastModified() : 0);
             // Not on the Favorites list itself, where every row is one and the mark says nothing.
             star.setVisibility(dest == Dest.FAVORITES && trail.isEmpty() ? View.GONE
                     : Favorites.has(BrowserActivity.this, item.file.getUri()) ? View.VISIBLE
@@ -3254,7 +3399,7 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
             final Uri indexed = item.folder ? null : stills.get(item.file.getUri().toString());
             Utils.bindPreview(box, served == null ? null : Uri.parse(served),
                     item.folder ? null : indexed != null ? indexed : item.file.getUri(),
-                    glyphFor(item), Utils.dpToPx(item.folder ? 32 : 24));
+                    glyphFor(item), Utils.dpToPx(item.folder ? 32 : 24), true);
             if (!item.folder && !item.volume && lengths.containsKey(item.file.getUri().toString())) {
                 // The track is the scale the run sits on, so it appears where a run can: with a length
                 // known. A folder has no position at all, and a file whose length nobody can state -
@@ -3350,10 +3495,9 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
          * things a listing can state about a file without opening it a second time. A tile keeps the
          * size alone: its line is a chip on the picture, the width of a running time.
          *
-         * <p>The date is numeric, in the shortest form the locale has: spelled out - "8 сент. 2025" -
-         * the line ran past the end of the row and was cut mid-number, and a four-digit year cost the
-         * same two characters again on anything from another year: "1080p · 734 МБ · 11.07.20…". Which
-         * is how the reference this follows draws it too, and it is avoidable.
+         * <p>The date goes to its own column at the end of the row ({@link #setDate}), not into this
+         * line: joined on here, a four-digit year was cut mid-number - "1080p · 734 МБ · 11.07.20…" -
+         * and in a folder sorted by date the dates did not line up to be read down.
          */
         void videoMeta(final Item item, final Context ctx) {
             final String size = sizeOf(item, ctx);
@@ -3371,10 +3515,9 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
                 }
             }
             final Long when = dates.get(key);
-            final long written = when != null ? when : item.file.lastModified();
+            setDate(when != null ? when : item.file.lastModified());
             final StringBuilder line = new StringBuilder();
-            for (final String part : new String[]{ said, size,
-                    written > 0 ? shortDate.format(written) : null }) {
+            for (final String part : new String[]{ said, size }) {
                 if (part != null && !part.isEmpty()) {
                     if (line.length() > 0) {
                         line.append(" · ");
@@ -3391,9 +3534,16 @@ public class BrowserActivity extends AppCompatActivity implements Dialogs.Chrome
          */
         void networkMeta(final Item item, final Context ctx) {
             final long bytes = item.file.length();
-            final long written = item.file.lastModified();
-            setMeta(bytes > 0 ? Formatter.formatShortFileSize(ctx, bytes) : null,
-                    written > 0 ? shortDate.format(written) : null);
+            setMeta(bytes > 0 ? Formatter.formatShortFileSize(ctx, bytes) : null, null);
+        }
+
+        /** The date column, or nothing where there is no date or no column. */
+        void setDate(final long written) {
+            if (date == null) {
+                return;
+            }
+            date.setText(written > 0 ? shortDate.format(written) : null);
+            date.setVisibility(written > 0 ? View.VISIBLE : View.GONE);
         }
 
     /**
