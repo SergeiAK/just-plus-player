@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string-array name="controller_timeout_entries">
+    <item>@string/pref_controller_timeout_3</item>
+    <item>@string/pref_controller_timeout_5</item>
+    <item>@string/pref_controller_timeout_8</item>
+    <item>@string/pref_controller_timeout_15</item>
+  </string-array>
+  <string-array name="controller_timeout_values" translatable="false">
+    <item>3500</item>
+    <item>5000</item>
+    <item>8000</item>
+    <item>15000</item>
+  </string-array>
   <string-array name="hold_speed_entries">
     <item>@string/pref_hold_speed_adjust</item>
     <item>@string/pref_hold_speed_fixed</item>

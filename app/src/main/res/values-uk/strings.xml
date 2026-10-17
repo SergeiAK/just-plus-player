@@ -121,6 +121,14 @@
     <string name="pref_disable_volume_brightness_gestures">Вимкнути жести гучності та яскравості</string>
     <string name="pref_disable_volume_brightness_gestures_on">Свайпи нічого не роблять, кнопки гучності працюють</string>
     <string name="pref_disable_volume_brightness_gestures_off">Свайп ліворуч — яскравість, праворуч — гучність</string>
+    <string name="pref_controller_timeout">Ховати панель через</string>
+    <string name="pref_controller_timeout_3">3,5 секунди</string>
+    <string name="pref_controller_timeout_5">5 секунд</string>
+    <string name="pref_controller_timeout_8">8 секунд</string>
+    <string name="pref_controller_timeout_15">15 секунд</string>
+    <string name="pref_controller_keep_on_pause">Не ховати панель на паузі</string>
+    <string name="pref_controller_keep_on_pause_on">На паузі панель лишається, доки не натиснуто «Назад»</string>
+    <string name="pref_controller_keep_on_pause_off">На паузі панель згасає так само, як під час відтворення</string>
     <string name="pref_hold_speed">Утримання для прискорення</string>
     <string name="pref_hold_speed_adjust">2×, тягніть, щоб змінити</string>
     <string name="pref_hold_speed_fixed">Завжди 2×</string>

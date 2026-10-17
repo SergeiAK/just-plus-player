@@ -177,6 +177,14 @@
     <string name="pref_disable_volume_brightness_gestures">Turn off volume and brightness swipes</string>
     <string name="pref_disable_volume_brightness_gestures_on">Swipes do nothing; the volume buttons still work</string>
     <string name="pref_disable_volume_brightness_gestures_off">Swipe on the left for brightness, right for volume</string>
+    <string name="pref_controller_timeout">Hide the controls after</string>
+    <string name="pref_controller_timeout_3">3.5 seconds</string>
+    <string name="pref_controller_timeout_5">5 seconds</string>
+    <string name="pref_controller_timeout_8">8 seconds</string>
+    <string name="pref_controller_timeout_15">15 seconds</string>
+    <string name="pref_controller_keep_on_pause">Keep the controls while paused</string>
+    <string name="pref_controller_keep_on_pause_on">Paused, the controls stay until you press Back</string>
+    <string name="pref_controller_keep_on_pause_off">Paused, the controls fade like during playback</string>
     <string name="pref_hold_speed">Hold to speed up</string>
     <string name="pref_hold_speed_adjust">2×, drag to change</string>
     <string name="pref_hold_speed_fixed">Always 2×</string>

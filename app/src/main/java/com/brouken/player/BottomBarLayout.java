@@ -2,6 +2,7 @@ package com.brouken.player;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.View;
 import android.widget.FrameLayout;
 
 /**
@@ -21,6 +22,8 @@ public class BottomBarLayout extends FrameLayout {
 
     private float travelScale = 1f;
     private float travel;
+    /** A view that is part of the bar without being inside it - the TV's button row above the seek bar. */
+    private View companion;
 
     public BottomBarLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -38,5 +41,25 @@ public class BottomBarLayout extends FrameLayout {
     public void setTranslationY(float translationY) {
         travel = translationY;
         super.setTranslationY(translationY * travelScale);
+        follow();
+    }
+
+    /**
+     * Makes a view come and go with the bar. It is not moved with it - the bar parks below the screen,
+     * and a row above the seek bar moved by as much would be parked over the picture - so it fades by
+     * how far the bar has travelled: whole at rest, gone once the bar is parked.
+     */
+    void setCompanion(View view) {
+        companion = view;
+        follow();
+    }
+
+    private void follow() {
+        if (companion == null) {
+            return;
+        }
+        final float height = getHeight();
+        companion.setAlpha(height <= 0 ? 1f
+                : Math.max(0f, Math.min(1f, 1f - Math.abs(super.getTranslationY()) / height)));
     }
 }

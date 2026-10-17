@@ -120,6 +120,14 @@
     <string name="pref_disable_volume_brightness_gestures">Отключить жесты громкости и яркости</string>
     <string name="pref_disable_volume_brightness_gestures_on">Свайпы ничего не делают, кнопки громкости работают</string>
     <string name="pref_disable_volume_brightness_gestures_off">Свайп слева меняет яркость, справа — громкость</string>
+    <string name="pref_controller_timeout">Скрывать панель через</string>
+    <string name="pref_controller_timeout_3">3,5 секунды</string>
+    <string name="pref_controller_timeout_5">5 секунд</string>
+    <string name="pref_controller_timeout_8">8 секунд</string>
+    <string name="pref_controller_timeout_15">15 секунд</string>
+    <string name="pref_controller_keep_on_pause">Не скрывать панель на паузе</string>
+    <string name="pref_controller_keep_on_pause_on">На паузе панель остаётся, пока не нажата кнопка «Назад»</string>
+    <string name="pref_controller_keep_on_pause_off">На паузе панель гаснет так же, как при воспроизведении</string>
     <string name="pref_hold_speed">Удержание для ускорения</string>
     <string name="pref_hold_speed_adjust">2×, тяните, чтобы изменить</string>
     <string name="pref_hold_speed_fixed">Всегда 2×</string>

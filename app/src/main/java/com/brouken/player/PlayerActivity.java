@@ -37,6 +37,7 @@ import android.content.res.Resources;
 import android.database.Cursor;
 import android.graphics.drawable.ClipDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.InsetDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -785,7 +786,8 @@ public class PlayerActivity extends Activity {
     static final String EXTRA_JOIN_CODE = "join_code";
     static final String EXTRA_JOIN_PASSWORD = "join_password";
     private static final int REQUEST_SETTINGS = 100;
-    public static final int CONTROLLER_TIMEOUT = 3500;
+    /** How long the controls stay up, from Settings (Prefs.controllerTimeout); 3500 until they load. */
+    public static int CONTROLLER_TIMEOUT = 3500;
     // Media3's own DURATION_FOR_HIDING_ANIMATION_MS — see fadeChrome, which has to match it.
     private static final int CHROME_FADE_MS = 250;
     private static final String ACTION_MEDIA_CONTROL = "media_control";
@@ -890,6 +892,10 @@ public class PlayerActivity extends Activity {
     private final Runnable keepAwakeGiveUpRunnable = () -> holdScreen(false);
     // Set while a Down press is opening the controls, so focus lands on the time bar instead of play/pause.
     private boolean focusTimeBarOnShow;
+    /** Set by Up while the controls are down: they open on the audio button (TV). */
+    private boolean focusAudioOnShow;
+    /** TV: the picker row, standing above the seek bar on the right rather than in the bottom bar. */
+    private HorizontalScrollView tvButtonRow;
     private ImageButton exoSettings;
     private ImageButton exoSubtitle;
     private ImageButton exoPlayPause;
@@ -1761,7 +1767,7 @@ public class PlayerActivity extends Activity {
         buttonQuality.setOnClickListener(view -> showQualityDialog());
 
         buttonAudio = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
-        buttonAudio.setImageResource(R.drawable.ic_audiotrack_24dp);
+        buttonAudio.setImageResource(R.drawable.ic_waveform_24dp);
         buttonAudio.setId(View.generateViewId());
         buttonAudio.setContentDescription(getString(R.string.button_audio_track));
         buttonAudio.setVisibility(View.GONE);
@@ -1919,8 +1925,17 @@ public class PlayerActivity extends Activity {
         titleView.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, ui.textHeaderTitle());
-        titleView.setMaxLines(1);
-        titleView.setEllipsize(TextUtils.TruncateAt.END);
+        // A long name runs across rather than stopping at an ellipsis: a release name keeps what tells
+        // two files apart - the edition, the resolution, the dub - at its end. Selected, so it runs
+        // while it is on screen without needing the focus, which belongs to the controls.
+        titleView.setSingleLine(true);
+        titleView.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+        titleView.setMarqueeRepeatLimit(-1);
+        titleView.setSelected(true);
+        // Faded at both ends, so a name in mid-run reads as moving rather than as cut off - without it the
+        // start of the next lap sat hard against the clock and the tail was sliced at the left edge.
+        titleView.setHorizontalFadingEdgeEnabled(true);
+        titleView.setFadingEdgeLength(Utils.dpToPx(24));
         titleView.setTextDirection(View.TEXT_DIRECTION_LOCALE);
         infoColumn.addView(titleView);
 
@@ -2441,6 +2456,19 @@ public class PlayerActivity extends Activity {
                 Utils.setViewParams(findViewById(R.id.exo_progress), insetH, 0, insetH, 0,
                         0, 0, 0, getResources().getDimensionPixelSize(R.dimen.exo_styled_progress_margin_bottom) + progressBarMarginBottom);
 
+                // TV: the button row sits just over the seek bar's line, its right edge where it ended in the
+                // bar. Not on the top of the bar's view: that is a touch band, and standing on it left 40dp
+                // of air between the row and the line it belongs to (measured on the Dune).
+                if (tvButtonRow != null) {
+                    final FrameLayout.LayoutParams rowLp =
+                            (FrameLayout.LayoutParams) tvButtonRow.getLayoutParams();
+                    rowLp.bottomMargin = progressBarMarginBottom
+                            + getResources().getDimensionPixelSize(R.dimen.exo_styled_progress_margin_bottom)
+                            + ui.dpS(20);
+                    rowLp.rightMargin = marginRight + paddingRight + ui.gridH();
+                    tvButtonRow.setLayoutParams(rowLp);
+                }
+
                 // Keep the Skip pill above the seek bar and clear of the nav-bar inset. It floats on the
                 // full-screen coordinator (not the controller), so a fixed bottom offset overlapped the
                 // progress bar on tablets — derive it from the seek bar's own geometry (its top sits at
@@ -2454,7 +2482,9 @@ public class PlayerActivity extends Activity {
                             + getResources().getDimensionPixelSize(R.dimen.exo_styled_progress_margin_bottom)
                             + getResources().getDimensionPixelSize(
                                     androidx.media3.ui.R.dimen.exo_styled_progress_layout_height)
-                            + ui.dpS(8);
+                            + ui.dpS(8)
+                            // TV: the button row stands on the seek bar there, so the pill stands on the row.
+                            + (tvButtonRow != null ? ui.dpS(36) : 0);
                     // Align the floating Skip button's right edge to the shared content grid (same as the pills
                     // and the progress bar), instead of a fixed 24dp + insetRight that overshoots in landscape.
                     skipLp.rightMargin = insetH + ui.gridH();
@@ -2476,7 +2506,8 @@ public class PlayerActivity extends Activity {
 
                 // The transfer line is the room pill's stand-in on the same slot, so it takes the pill's
                 // offsets verbatim; a right margin too, so a long line stops at the grid instead of the edge.
-                if (transferView != null) {
+                if (transferView != null
+                        && transferView.getLayoutParams() instanceof CoordinatorLayout.LayoutParams) {
                     final CoordinatorLayout.LayoutParams transferParams =
                             (CoordinatorLayout.LayoutParams) transferView.getLayoutParams();
                     transferParams.bottomMargin = windowInsets.getSystemWindowInsetBottom() + overscanV
@@ -2584,27 +2615,51 @@ public class PlayerActivity extends Activity {
 
         // Multimedia pickers, each shown when relevant, live in the bottom bar on every device. Order:
         // subtitles, audio, quality, playlist - the ones reached for most during a film come first.
-        controls.addView(exoSubtitle);
-        controls.addView(buttonAudio);
-        controls.addView(buttonQuality);
-        controls.addView(buttonPlaylist);
-        if (mPrefs.repeatToggle) {
-            controls.addView(exoRepeat);
+        if (isTvBox) {
+            // TV: the row ends subtitles, audio, more, so that from audio - where Up lands - Left is always
+            // subtitles and Right always more. What only some files have goes further left: quality,
+            // playlist, and the two that are not pickers at all.
+            if (mPrefs.repeatToggle) {
+                controls.addView(exoRepeat);
+            }
+            controls.addView(buttonQuality);
+            controls.addView(buttonPlaylist);
+            controls.addView(exoSubtitle);
+            controls.addView(buttonAudio);
+        } else {
+            controls.addView(exoSubtitle);
+            controls.addView(buttonAudio);
+            controls.addView(buttonQuality);
+            controls.addView(buttonPlaylist);
+            if (mPrefs.repeatToggle) {
+                controls.addView(exoRepeat);
+            }
         }
 
         // Display / screen controls: beside the header clock on touch; in the bottom bar on TV so the remote
         // keeps a single left/right focus zone.
         final LinearLayout displayParent = isTvBox ? controls : headerButtons;
-        displayParent.addView(buttonAspectRatio);
+        // On TV the frame is set from More (showMoreMenu), not from a button in the row.
+        if (!isTvBox) {
+            displayParent.addView(buttonAspectRatio);
+        }
         if (Utils.isPiPSupported(this) && buttonPiP != null) {
-            displayParent.addView(buttonPiP);
+            if (isTvBox) {
+                controls.addView(buttonPiP, 0);
+            } else {
+                displayParent.addView(buttonPiP);
+            }
         }
         if (!isTvBox) {
             displayParent.addView(buttonRotation);
         }
-        // "Update available" sits immediately before the gear — one insertion point that lands in the same
-        // place on a phone and on TV, because the gear ends the bottom bar on both.
-        controls.addView(buttonUpdate);
+        // "Update available" sits immediately before the gear on a phone; on TV at the far left, so the
+        // right-hand end of the row stays subtitles, audio, more.
+        if (isTvBox) {
+            controls.addView(buttonUpdate, 0);
+        } else {
+            controls.addView(buttonUpdate);
+        }
         // "More" (overflow) always lives at the end of the bottom bar.
         controls.addView(buttonMore);
 
@@ -2654,7 +2709,36 @@ public class PlayerActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         horizontalScrollViewLp.gravity = Gravity.CENTER_VERTICAL;
         horizontalScrollViewLp.setMarginEnd(ui.gridH());
-        exoBasicControls.addView(horizontalScrollView, horizontalScrollViewLp);
+        if (isTvBox) {
+            // TV: the row stands above the seek bar on the right, and the transfer line takes its old
+            // place in the bottom bar. The row lives in the controller, beside the bar rather than in
+            // it, so it is shown and hidden with the controls; the bar fades it as it parks (see
+            // BottomBarLayout.setCompanion). Its offsets are set with the insets, next to the seek bar's.
+            tvButtonRow = horizontalScrollView;
+            final BottomBarLayout bar = findViewById(R.id.exo_bottom_bar);
+            final ViewGroup controller = (ViewGroup) bar.getParent();
+            controller.addView(horizontalScrollView, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.BOTTOM | Gravity.END));
+            bar.setCompanion(horizontalScrollView);
+            if (transferView != null && transferView.getParent() instanceof ViewGroup) {
+                ((ViewGroup) transferView.getParent()).removeView(transferView);
+                final LinearLayout.LayoutParams transferInBar = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                transferInBar.gravity = Gravity.CENTER_VERTICAL;
+                transferInBar.setMarginEnd(ui.gridH());
+                transferView.setMaxLines(1);
+                exoBasicControls.addView(transferView, transferInBar);
+            }
+            // Down from any button is the seek bar; Up from the seek bar is audio (or whichever of the
+            // row is there, when a file has no audio choice to make - see the visibility listener).
+            for (int i = 0; i < controls.getChildCount(); i++) {
+                controls.getChildAt(i).setNextFocusDownId(R.id.exo_progress);
+            }
+            timeBar.setNextFocusUpId(buttonAudio.getId());
+        } else {
+            exoBasicControls.addView(horizontalScrollView, horizontalScrollViewLp);
+        }
 
         // Lock sits isolated at the far-left of the bottom bar — prepended into the time row, away from the
         // display cluster (MX-style) so it is no longer adjacent to the rotation button. Touch only (the lock
@@ -2740,7 +2824,16 @@ public class PlayerActivity extends Activity {
                 }
                 if (visibility == View.VISIBLE) {
                     // Because when using dpad controls, focus resets to first item in bottom controls bar
-                    if (focusTimeBarOnShow) {
+                    if (focusAudioOnShow) {
+                        // Set by Up. Same two passes as the time bar below. Audio when the file has a
+                        // choice of tracks, else the nearest button of the row that is there.
+                        if (!focusRowButton() && !exoPlayPause.requestFocus()) {
+                            parkFocusOnLoadingRing();
+                        }
+                        if (controllerVisibleFully) {
+                            focusAudioOnShow = false;
+                        }
+                    } else if (focusTimeBarOnShow) {
                         // Set by Down, which opens the controls straight on the time bar. Deciding it here
                         // rather than at the key press is what makes it stick: this listener runs twice per
                         // show (once when the controls appear, once when the animation ends) and the second
@@ -2756,6 +2849,7 @@ public class PlayerActivity extends Activity {
                     }
                 } else {
                     focusTimeBarOnShow = false;
+                    focusAudioOnShow = false;
                 }
 
                 if (controllerVisible && playerView.isControllerFullyVisible()) {
@@ -3513,6 +3607,8 @@ public class PlayerActivity extends Activity {
                     if (event.getRepeatCount() == 0)
                         playerView.hideController();
                 } else if (event.getRepeatCount() == 0) {
+                    // TV: Up opens the controls on the audio button, as Down opens them on the seek bar.
+                    focusAudioOnShow = haveMedia && tvButtonRow != null;
                     playerView.showController();
                 }
                 return true;
@@ -6296,12 +6392,15 @@ public class PlayerActivity extends Activity {
         // Stop short of the Skip pill rather than step aside for it: the pill stands for a whole opening
         // or a whole set of credits, and the figures would be gone for all of it. The pill's own width is
         // the only thing that has to be read, and it is read on the tick that is running anyway.
-        final CoordinatorLayout.LayoutParams lp =
-                (CoordinatorLayout.LayoutParams) transferView.getLayoutParams();
-        final int row = coordinatorLayout.getWidth() - lp.leftMargin - lp.rightMargin;
-        final int free = isVisible(buttonSkip) ? row - buttonSkip.getWidth() - ui.dpS(8) : row;
-        if (free > 0) {
-            transferView.setMaxWidth(free);
+        // In the bottom bar (TV) the line has the bar's right half to itself; floating, it shares a row.
+        if (transferView.getLayoutParams() instanceof CoordinatorLayout.LayoutParams) {
+            final CoordinatorLayout.LayoutParams lp =
+                    (CoordinatorLayout.LayoutParams) transferView.getLayoutParams();
+            final int row = coordinatorLayout.getWidth() - lp.leftMargin - lp.rightMargin;
+            final int free = isVisible(buttonSkip) ? row - buttonSkip.getWidth() - ui.dpS(8) : row;
+            if (free > 0) {
+                transferView.setMaxWidth(free);
+            }
         }
         fadeChrome(transferView, true);
     }
@@ -10089,16 +10188,22 @@ public class PlayerActivity extends Activity {
         }
         final int pad = ui.clusterPad();
         button.setPadding(pad, pad, pad, pad);
-        // The glyph keeps saying what the control is — coral when it is on — under the contour as well as
-        // without it: state is ink, focus is the line, and the two never share a property.
+        // The glyph keeps saying what the control is - the accent when it is on - and focus is the disc
+        // under it: state is ink, focus is the ground, and the two never share a property.
         button.setImageTintList(ContextCompat.getColorStateList(this, R.color.control_icon_tint));
-        button.setBackground(null);
-        // The press belongs to the whole button, as it does on the episode discs — the box itself, whose
-        // ends a pill rounds by its own clip where there is one — while the contour stays the smaller
-        // indicator inside it. One shape for every button in either row: the header on a phone carries no
-        // pill, and it still takes the same mark, because a control should not change what pressing it
-        // looks like with the row it happens to sit in.
-        button.setForeground(Utils.chromeForeground(this, ui.contourCorner(), ui.contourInset(), 0f, 0));
+        // Focus is a white disc under a dark glyph, the whole button wide - the mark Google TV and tvOS put
+        // on a focused control, and the one that stays legible on any frame without a line around it.
+        // White rather than the accent, because the accent already means "on" here (a subtitle button
+        // with subtitles on), and the two have to be told apart on the same button.
+        final GradientDrawable focusDisc = new GradientDrawable();
+        focusDisc.setShape(GradientDrawable.OVAL);
+        focusDisc.setColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}},
+                new int[]{0xFFF5F5F5, Color.TRANSPARENT}));
+        button.setBackground(new InsetDrawable(focusDisc, ui.dpS(2)));
+        // The press stays what it was, the whole box; only the white contour is gone.
+        button.setForeground(Utils.coveringRipple(
+                Utils.pressOnly(ContextCompat.getColor(this, R.color.ripple_chrome)),
+                new ColorDrawable(Color.TRANSPARENT), Utils.shape(Color.WHITE, 0f)));
         final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ui.clusterBox(), ui.clusterBox());
         params.gravity = Gravity.CENTER_VERTICAL;
@@ -10365,6 +10470,11 @@ public class PlayerActivity extends Activity {
         if (player != null) {
             items.add(new Dialogs.MenuItem(R.drawable.ic_sleep_24dp, getString(R.string.sleep_timer_title),
                     sleepTimerSummary(), false, this::showSleepTimerPanel));
+        }
+        if (player != null && isTvBox) {
+            // The frame's button left the TV row to keep its right end to subtitles, audio and more.
+            items.add(new Dialogs.MenuItem(R.drawable.ic_aspect_ratio_24dp, getString(R.string.button_crop),
+                    null, false, this::showAspectModePicker));
         }
         items.add(Dialogs.MenuItem.rule());
         // Here as well as in the subtitle panel: the panel is where somebody who has looked for
@@ -16713,6 +16823,24 @@ public class PlayerActivity extends Activity {
     // pausing. The ring holds focus in play/pause's place instead: same slot, no highlight of its own (see the
     // default-focus-highlight call in onCreate), and updateLoading(false) hands it straight back. A no-op on
     // touch devices, where neither view is focusable in touch mode.
+    /** Puts the focus on audio, or on the row's button nearest to it; false when the row has none. */
+    private boolean focusRowButton() {
+        if (tvButtonRow == null) {
+            return false;
+        }
+        if (isVisible(buttonAudio) && buttonAudio.requestFocus()) {
+            return true;
+        }
+        final ViewGroup row = (ViewGroup) tvButtonRow.getChildAt(0);
+        for (int i = row.getChildCount() - 1; i >= 0; i--) {
+            final View button = row.getChildAt(i);
+            if (button != buttonMore && isVisible(button) && button.requestFocus()) {
+                return true;
+            }
+        }
+        return buttonMore.requestFocus();
+    }
+
     private void parkFocusOnLoadingRing() {
         loadingProgressBar.setFocusable(true);
         loadingProgressBar.requestFocus();
@@ -17201,6 +17329,11 @@ public class PlayerActivity extends Activity {
         if (playerView == null)
             return;
         playerView.removeCallbacks(hideControllerAction);
+        // Asked for in Settings: paused controls stay until Back. Media3 already keeps them up while
+        // paused; this auto-hide is the app's own, and it is the one thing to leave out.
+        if (mPrefs != null && mPrefs.controllerKeepOnPause) {
+            return;
+        }
         if (controllerVisibleFully && haveMedia && player != null
                 && player.getPlaybackState() == Player.STATE_READY && !player.getPlayWhenReady()
                 && !locked && !pickerDialogOpen && !isScrubbing) {

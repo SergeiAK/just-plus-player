@@ -263,6 +263,10 @@ class Prefs {
     public boolean playlistGrid = true;
     public boolean tvSingleBack = false;
     public boolean keepAwakeOnPause = true;
+    /** How long the controls stay up after the last press, in ms. 3500 is what the app always had. */
+    public int controllerTimeout = 3500;
+    /** Whether paused controls stay until Back rather than fading like they do during playback. */
+    public boolean controllerKeepOnPause = false;
     // Whether compressed surround (Dolby, DTS) may be bitstreamed to the receiver. Off by default: every
     // track is decoded in the player to PCM (see PlayerActivity's audio sink), multichannel included -
     // only the compressed bitstream path is refused. That path is the whole fragile chain on a box whose
@@ -485,6 +489,15 @@ class Prefs {
         playlistGrid = mSharedPreferences.getBoolean(PREF_KEY_PLAYLIST_GRID, playlistGrid);
         tvSingleBack = mSharedPreferences.getBoolean(PREF_KEY_TV_SINGLE_BACK, tvSingleBack);
         keepAwakeOnPause = mSharedPreferences.getBoolean(PREF_KEY_KEEP_AWAKE_ON_PAUSE, keepAwakeOnPause);
+        try {
+            controllerTimeout = Integer.parseInt(mSharedPreferences.getString("controllerTimeout",
+                    String.valueOf(controllerTimeout)));
+        } catch (final NumberFormatException ignored) {
+            // A value from a build that stored something else: the default stands.
+        }
+        controllerKeepOnPause = mSharedPreferences.getBoolean("controllerKeepOnPause", controllerKeepOnPause);
+        // Static because the view reads it too (CustomPlayerView), and both read it per show.
+        PlayerActivity.CONTROLLER_TIMEOUT = controllerTimeout;
         audioPassthrough = mSharedPreferences.getBoolean(PREF_KEY_AUDIO_PASSTHROUGH, audioPassthrough);
         audioPassthroughForce = mSharedPreferences.getBoolean(PREF_KEY_AUDIO_PASSTHROUGH_FORCE,
                 audioPassthroughForce);

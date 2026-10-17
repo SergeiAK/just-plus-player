@@ -179,6 +179,21 @@
                 app:summaryOff="@string/pref_show_transfer_off"
                 app:title="@string/pref_show_transfer" />
 
+            <ListPreference
+                app:key="controllerTimeout"
+                app:defaultValue="3500"
+                app:entries="@array/controller_timeout_entries"
+                app:entryValues="@array/controller_timeout_values"
+                app:title="@string/pref_controller_timeout"
+                app:useSimpleSummaryProvider="true" />
+
+            <SwitchPreferenceCompat
+                app:key="controllerKeepOnPause"
+                app:defaultValue="false"
+                app:summaryOn="@string/pref_controller_keep_on_pause_on"
+                app:summaryOff="@string/pref_controller_keep_on_pause_off"
+                app:title="@string/pref_controller_keep_on_pause" />
+
             <SwitchPreferenceCompat
                 app:key="keepAwakeOnPause"
                 app:defaultValue="true"
