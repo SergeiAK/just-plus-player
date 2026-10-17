@@ -64,25 +64,40 @@ public class AviAudioReframerTest {
     /** AC3 192 kbit/s, 960-byte chunks at 25 fps: 1 in 4 chunks starts on a frame. */
     @Test
     public void ac3In960ByteChunks() throws Exception {
-        checkFile("a960.avi", MimeTypes.AUDIO_AC3, 24_000);
+        checkFile("a960.avi", MimeTypes.AUDIO_AC3, true, 24_000);
     }
 
     /** AC3 192 kbit/s, 1001-byte chunks at 23.976 fps: the layout of the rips in #234. */
     @Test
     public void ac3In1001ByteChunks() throws Exception {
-        checkFile("a1001.avi", MimeTypes.AUDIO_AC3, 24_000);
+        checkFile("a1001.avi", MimeTypes.AUDIO_AC3, true, 24_000);
     }
 
-    /** MPEG-1 Layer II 192 kbit/s (576-byte frames), 1001-byte chunks. */
+    /** MPEG-1 Layer II 192 kbit/s (576-byte frames), 1001-byte chunks, tagged as MP3 (0x55). */
+    @Test
+    public void mp2TaggedMp3In1001ByteChunks() throws Exception {
+        checkFile("m1001.avi", MimeTypes.AUDIO_MPEG_L2, true, 24_000);
+    }
+
+    /** The same with its own tag, WAVE_FORMAT_MPEG (0x50), which Media3 drops: no control run. */
     @Test
     public void mp2In1001ByteChunks() throws Exception {
-        checkFile("m1001.avi", MimeTypes.AUDIO_MPEG_L2, 24_000);
+        checkFile("m1001-0x50.avi", MimeTypes.AUDIO_MPEG_L2, false, 24_000);
+    }
+
+    /**
+     * A header Media3 cannot read: an odd-sized strn ("Audio Stream\0", 13 bytes) followed by more
+     * chunks in its strl. Written by ffmpeg as is; the audio chunks are whole frames already.
+     */
+    @Test
+    public void oddSizedHeaderChunk() throws Exception {
+        checkFile("odd-strn.avi", MimeTypes.AUDIO_AC3, false, 24_000);
     }
 
     /** DTS core 768 kbit/s, 4004-byte chunks. */
     @Test
     public void dtsIn4004ByteChunks() throws Exception {
-        checkFile("d4004.avi", MimeTypes.AUDIO_DTS, 96_000);
+        checkFile("d4004.avi", MimeTypes.AUDIO_DTS, true, 96_000);
     }
 
     /**
@@ -115,22 +130,29 @@ public class AviAudioReframerTest {
     }
 
     /**
-     * @param bytesPerSecond the stream's constant byte rate (unused until the seek stamp is asserted:
-     *                       frame k starts at k * frameBytes / bytesPerSecond).
+     * @param media3Control  whether to read the file with Media3's own extractor too, as the control
+     *                       (the misaligned chunks it hands on); false where Media3 cannot read it.
+     * @param bytesPerSecond the stream's constant byte rate: frame i starts at
+     *                       i * frameBytes / bytesPerSecond, exactly.
      */
-    private static void checkFile(String name, String mime, int bytesPerSecond) throws Exception {
+    private static void checkFile(String name, String mime, boolean media3Control, int bytesPerSecond)
+            throws Exception {
         final File file = testFile(name);
 
-        final Capture plain = extract(file, false, -1);
-        final Track plainAudio = plain.audio();
         int plainOnSync = 0;
-        long streamBytes = 0;
-        for (byte[] s : plainAudio.samples) {
-            if (startsWithSync(mime, s)) plainOnSync++;
-            streamBytes += s.length;
+        long streamBytes = -1;
+        Track plainAudio = null;
+        if (media3Control) {
+            plainAudio = extract(file, false, -1).audio();
+            streamBytes = 0;
+            for (byte[] s : plainAudio.samples) {
+                if (startsWithSync(mime, s)) plainOnSync++;
+                streamBytes += s.length;
+            }
+            System.out.println(name + " without reframer: " + plainAudio.samples.size()
+                    + " audio samples, " + plainOnSync + " start on a sync word, sizes "
+                    + sizes(plainAudio));
         }
-        System.out.println(name + " without reframer: " + plainAudio.samples.size() + " audio samples, "
-                + plainOnSync + " start on a sync word, sizes " + sizes(plainAudio));
 
         final Capture reframed = extract(file, true, -1);
         final Track audio = reframed.audio();
@@ -142,18 +164,23 @@ public class AviAudioReframerTest {
         assertEquals(48_000, audio.format.sampleRate);
         assertEquals(2, audio.format.channelCount);
         final int frameBytes = audio.samples.get(0).length;
-        final long stepUs = audio.timesUs.get(1) - audio.timesUs.get(0);
-        assertEquals("every byte of the stream lands in a frame", streamBytes / frameBytes,
-                audio.samples.size());
+        if (streamBytes >= 0) {
+            assertEquals("every byte of the stream lands in a frame", streamBytes / frameBytes,
+                    audio.samples.size());
+        }
         for (int i = 0; i < audio.samples.size(); i++) {
             final byte[] s = audio.samples.get(i);
             assertEquals("frame " + i + " size", frameBytes, s.length);
             assertTrue("frame " + i + " starts on a sync word", startsWithSync(mime, s));
             assertTrue("frame " + i + " is a key frame", (audio.flags.get(i) & C.BUFFER_FLAG_KEY_FRAME) != 0);
-            assertEquals("frame " + i + " time", i * stepUs, (long) audio.timesUs.get(i));
+            assertEquals("frame " + i + " time", i * (long) frameBytes * C.MICROS_PER_SECOND / bytesPerSecond,
+                    (long) audio.timesUs.get(i));
         }
         // The control: without the layer the decoder really is fed misaligned chunks.
-        assertTrue("plain chunks are mostly misaligned", plainOnSync < plainAudio.samples.size() / 2);
+        if (plainAudio != null) {
+            assertTrue("plain chunks are mostly misaligned",
+                    plainOnSync < plainAudio.samples.size() / 2);
+        }
 
         // Seek to 10 s, read on, and check the first frames after the seek.
         final long seekUs = 10_000_000;
@@ -179,12 +206,30 @@ public class AviAudioReframerTest {
             final byte[] s = sought.samples.get(i);
             assertEquals("after seek, frame " + i + " size", frameBytes, s.length);
             assertTrue("after seek, frame " + i + " starts on a sync word", startsWithSync(mime, s));
-            assertEquals("after seek, frame " + i + " time", first + i * stepUs,
-                    (long) sought.timesUs.get(i));
+            if (k >= 0 && k + i < audio.timesUs.size()) {
+                assertEquals("after seek, frame " + i + " time", audio.timesUs.get(k + i),
+                        sought.timesUs.get(i));
+            }
         }
-        // The stamp after a seek is not asserted yet: it inherits the chunk time from Media3's
-        // ChunkReader, which is wrong after a seek (one chunk early; for DTS, garbage — see
-        // media3AviSeekStampsFirstAudioChunk). The offset printed above is the measurement.
+        // Rounding only: the chunk time is exact in bytes, the skipped bytes are timed by the header.
+        assertTrue("first audio frame after seek stamped as in the full read (off by "
+                + (first - expected) + " us)", Math.abs(first - expected) <= 2);
+
+        // Video after the seek: the first chunk read must carry the time the full read gave it.
+        final Track fullVideo = reframed.video();
+        final Track soughtVideo = afterSeek.video();
+        int v = -1;
+        for (int i = 0; i < fullVideo.samples.size(); i++) {
+            if (Arrays.equals(fullVideo.samples.get(i), soughtVideo.samples.get(0))) {
+                v = i;
+                break;
+            }
+        }
+        assertTrue("first video frame after seek found in the full read", v >= 0);
+        System.out.println(name + " after seek: first video frame is #" + v + ", stamped "
+                + soughtVideo.timesUs.get(0) + " us, full read " + fullVideo.timesUs.get(v) + " us");
+        assertEquals("first video frame after seek stamped as in the full read",
+                fullVideo.timesUs.get(v), soughtVideo.timesUs.get(0));
     }
 
     private static File testFile(String name) {
@@ -226,7 +271,8 @@ public class AviAudioReframerTest {
         // AviExtractor the same way (checked against the 1.11.0 bytecode), which is all the layer needs.
         final ExtractorsFactory base = () -> new Extractor[]{
                 new AviExtractor(0, new DefaultSubtitleParserFactory())};
-        final ExtractorsFactory factory = reframe ? new AviAudioReframer(base) : base;
+        final ExtractorsFactory factory =
+                reframe ? new AviAudioReframer(base, new DefaultSubtitleParserFactory()) : base;
 
         Extractor extractor = null;
         for (Extractor candidate : factory.createExtractors()) {
@@ -299,6 +345,13 @@ public class AviAudioReframerTest {
         @Override
         public void seekMap(SeekMap seekMap) {
             this.seekMap = seekMap;
+        }
+
+        Track video() {
+            for (Track t : order) {
+                if (t.format != null && MimeTypes.isVideo(t.format.sampleMimeType)) return t;
+            }
+            throw new AssertionError("no video track");
         }
 
         Track audio() {

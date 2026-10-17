@@ -12366,7 +12366,8 @@ public class PlayerActivity extends Activity {
         // The compressed audio of an AVI arrives in chunks cut by video frame, not by audio frame, and the
         // decoders choke on it (see AviAudioReframer). Innermost, so the wrappers below still see the
         // extractors they look for by type.
-        final ExtractorsFactory baseExtractorsFactory = new AviAudioReframer(extractorsFactory);
+        final ExtractorsFactory baseExtractorsFactory =
+                new AviAudioReframer(extractorsFactory, subtitleParserFactory);
         final boolean convertDV7 = !mPrefs.mapDV7ToHevc && !forceHevcForDolbyVision;
         dv7Converter = convertDV7
                 ? new Dv7Converter(baseExtractorsFactory, subtitleParserFactory, mPrefs.removeHdr10Plus)

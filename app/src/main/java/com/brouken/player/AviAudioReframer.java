@@ -25,6 +25,7 @@ import androidx.media3.extractor.PositionHolder;
 import androidx.media3.extractor.SeekMap;
 import androidx.media3.extractor.TrackOutput;
 import androidx.media3.extractor.avi.AviExtractor;
+import androidx.media3.extractor.text.SubtitleParser;
 import androidx.media3.extractor.ts.Ac3Reader;
 import androidx.media3.extractor.ts.DtsReader;
 import androidx.media3.extractor.ts.ElementaryStreamReader;
@@ -54,17 +55,29 @@ import java.util.Map;
  * itself. Only the first chunk after a start or a seek needs a time from the container, and it gets
  * the chunk's own time plus the bytes skipped before the first sync word.
  *
- * <p>Only {@link AviExtractor} instances are touched and only their audio tracks of a codec with a
- * reader here (AC3, E-AC3, MPEG audio layers 1-3, DTS core); anything else passes through unchanged,
- * which is why this sits innermost, under every wrapper that looks at extractors by type.
+ * <p>That one time has to be right, and Media3's own AVI extractor gets it wrong after a seek (one
+ * chunk early; for DTS, near zero), so the Media3 {@link AviExtractor} is replaced here by the fork's
+ * copy in {@code com.brouken.player.avi}, which times byte-counted audio by its bytes and resumes
+ * at the chunk it actually reads.
+ *
+ * <p>Only AVI extractors are touched and only their audio tracks of a codec with a reader here (AC3,
+ * E-AC3, MPEG audio layers 1-3, DTS core); anything else passes through unchanged, which is why this
+ * sits innermost, under every wrapper that looks at extractors by type.
  */
 final class AviAudioReframer extends ForwardingExtractorsFactory {
 
     private static final String CONTAINER_MIME = "video/x-msvideo";
     private static final int DTS_MAX_INPUT_SIZE = 4096;
 
-    AviAudioReframer(ExtractorsFactory delegate) {
+    private final SubtitleParser.Factory subtitleParserFactory;
+
+    /**
+     * @param subtitleParserFactory what the delegate gives its own extractors, handed on to the
+     *                              replacement AVI extractor (which only reads audio and video).
+     */
+    AviAudioReframer(ExtractorsFactory delegate, SubtitleParser.Factory subtitleParserFactory) {
         super(delegate);
+        this.subtitleParserFactory = subtitleParserFactory;
     }
 
     @Override
@@ -77,10 +90,11 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
         return wrap(super.createExtractors(uri, responseHeaders));
     }
 
-    private static Extractor[] wrap(Extractor[] extractors) {
+    private Extractor[] wrap(Extractor[] extractors) {
         for (int i = 0; i < extractors.length; i++) {
             if (extractors[i] instanceof AviExtractor) {
-                extractors[i] = new AviReframingExtractor(extractors[i]);
+                extractors[i] = new AviReframingExtractor(new com.brouken.player.avi.AviExtractor(
+                        /* extractorFlags= */ 0, subtitleParserFactory));
             }
         }
         return extractors;
@@ -146,6 +160,12 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
         private byte[] buffer = new byte[4096];
         private int filled;
         private boolean started;
+        /**
+         * Byte-counted audio: the stream byte at which the first frame after a start or seek begins,
+         * and the frame bytes handed on since. Every frame is timed from these with one division.
+         */
+        private long anchorStreamBytes;
+        private long emittedBytes;
 
         ReframingTrackOutput(TrackOutput downstream, int trackId) {
             super(downstream);
@@ -156,6 +176,7 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
         void reset() {
             filled = 0;
             started = false;
+            emittedBytes = 0;
             if (reader != null) {
                 reader.seek();
             }
@@ -262,7 +283,16 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
             }
             if (!started) {
                 final int skipped = syncOffset(start, end);
-                reader.packetStarted(timeUs + bytesToUs(skipped, start + skipped, end), 0);
+                emittedBytes = 0;
+                final int bitrate = containerBitrate();
+                if (bitrate > 0) {
+                    // The chunk time is floor(bytes / rate); below a megabyte a second only one byte
+                    // count gives it, so the stream position comes back exactly.
+                    anchorStreamBytes = ceilDiv(timeUs * bitrate, 8L * C.MICROS_PER_SECOND) + skipped;
+                    reader.packetStarted(streamBytesToUs(anchorStreamBytes, bitrate), 0);
+                } else {
+                    reader.packetStarted(timeUs + bytesToUs(skipped, start + skipped, end), 0);
+                }
                 started = true;
             }
             final ParsableByteArray chunk = new ParsableByteArray(buffer, end);
@@ -313,15 +343,35 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
         }
 
         /**
-         * How long {@code bytes} of this stream play, judged by the frame header at {@code at}. The
-         * container cannot say: AviExtractor puts no bitrate on the format. 0 when the header does not
-         * parse (too few bytes left in the chunk, or a false sync word), which stamps the first frame up
-         * to one frame early — what it was before this existed.
+         * The bitrate the container counts this stream's bytes at, or 0. The fork's AVI extractor puts
+         * it on the format of byte-counted audio, which is the audio these chunks carry.
+         */
+        private static long streamBytesToUs(long bytes, int bitrate) {
+            return bytes * 8L * C.MICROS_PER_SECOND / bitrate;
+        }
+
+        private static long ceilDiv(long a, long b) {
+            return -Math.floorDiv(-a, b);
+        }
+
+        private int containerBitrate() {
+            return sourceFormat != null && sourceFormat.averageBitrate > 0
+                    ? sourceFormat.averageBitrate : 0;
+        }
+
+        /**
+         * How long {@code bytes} of this stream play: by the container's bitrate when it has one, else
+         * by the frame header at {@code at}. 0 when neither says (the header does not parse: too few
+         * bytes left in the chunk, or a false sync word), which stamps the first frame up to one frame
+         * early.
          */
         private long bytesToUs(int bytes, int at, int end) {
             final String mime = sourceFormat != null ? sourceFormat.sampleMimeType : null;
             if (mime == null || bytes <= 0) {
                 return 0;
+            }
+            if (containerBitrate() > 0) {
+                return bytes * 8L * C.MICROS_PER_SECOND / containerBitrate();
             }
             final byte[] header = Arrays.copyOfRange(buffer, at, end);
             int bitrate = 0;
@@ -374,6 +424,23 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
             @Override
             public TrackOutput track(int id, int type) {
                 return new ForwardingTrackOutput(downstream) {
+                    /**
+                     * Byte-counted audio: each frame at the anchor plus the bytes before it. The
+                     * readers add up a frame duration rounded down to whole microseconds instead,
+                     * which drifts with every frame that is not a whole number of them (DTS core at
+                     * 48 kHz, anything at 44.1 kHz): about 0.2 s over a two-hour film.
+                     */
+                    @Override
+                    public void sampleMetadata(long timeUs, int flags, int size, int offset,
+                                               @Nullable CryptoData cryptoData) {
+                        final int bitrate = containerBitrate();
+                        if (bitrate > 0) {
+                            timeUs = streamBytesToUs(anchorStreamBytes + emittedBytes, bitrate);
+                            emittedBytes += size;
+                        }
+                        super.sampleMetadata(timeUs, flags, size, offset, cryptoData);
+                    }
+
                     @Override
                     public void format(Format readerFormat) {
                         super.format(readerFormat.buildUpon()
