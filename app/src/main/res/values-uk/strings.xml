@@ -467,6 +467,7 @@
 
     <string name="pref_about_project">Проєкт</string>
     <string name="pref_about_developer">Розробник</string>
+    <string name="about_developer_fork">@levende, зі змінами від SergeiAK</string>
     <string name="pref_about_source">Вихідний код</string>
 
 
