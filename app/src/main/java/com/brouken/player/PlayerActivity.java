@@ -12363,15 +12363,19 @@ public class PlayerActivity extends Activity {
         // user asked for the base layer outright ("Dolby Vision profile 7 fallback", handled by
         // setMapDV7ToHevc above), and not during the recovery that exists to get away from the device's
         // Dolby Vision decoder altogether.
+        // The compressed audio of an AVI arrives in chunks cut by video frame, not by audio frame, and the
+        // decoders choke on it (see AviAudioReframer). Innermost, so the wrappers below still see the
+        // extractors they look for by type.
+        final ExtractorsFactory baseExtractorsFactory = new AviAudioReframer(extractorsFactory);
         final boolean convertDV7 = !mPrefs.mapDV7ToHevc && !forceHevcForDolbyVision;
         dv7Converter = convertDV7
-                ? new Dv7Converter(extractorsFactory, subtitleParserFactory, mPrefs.removeHdr10Plus)
+                ? new Dv7Converter(baseExtractorsFactory, subtitleParserFactory, mPrefs.removeHdr10Plus)
                 : null;
         // A Matroska file whose index is reached through a chain of SeekHeads is unseekable to the stock
         // extractor — no time bar focus on TV, no resume, every seek landing back at zero. Outermost, so
         // that Dv7Converter still finds a MatroskaExtractor where it looks for one; see MkvCuesLink.
         final ExtractorsFactory seekableExtractorsFactory =
-                new MkvCuesLink.Factory(convertDV7 ? dv7Converter : extractorsFactory);
+                new MkvCuesLink.Factory(convertDV7 ? dv7Converter : baseExtractorsFactory);
         // Outside all of it, and unconditional: Dolby Vision profile 10 is an AV1 stream that Media3
         // hands to an AV1 decoder with a Dolby Vision profile written onto it, which is a number that
         // decoder does not have and some refuse to be configured with (see Dv10AsAv1). Nothing below
