@@ -8,14 +8,20 @@ import androidx.media3.common.DataReader;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.ParserException;
+import androidx.media3.common.util.ParsableBitArray;
 import androidx.media3.common.util.ParsableByteArray;
+import androidx.media3.extractor.Ac3Util;
+import androidx.media3.extractor.DtsUtil;
 import androidx.media3.extractor.Extractor;
+import androidx.media3.extractor.ExtractorInput;
 import androidx.media3.extractor.ExtractorOutput;
 import androidx.media3.extractor.ExtractorsFactory;
 import androidx.media3.extractor.ForwardingExtractor;
 import androidx.media3.extractor.ForwardingExtractorOutput;
 import androidx.media3.extractor.ForwardingExtractorsFactory;
 import androidx.media3.extractor.ForwardingTrackOutput;
+import androidx.media3.extractor.MpegAudioUtil;
+import androidx.media3.extractor.PositionHolder;
 import androidx.media3.extractor.SeekMap;
 import androidx.media3.extractor.TrackOutput;
 import androidx.media3.extractor.avi.AviExtractor;
@@ -112,6 +118,19 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
                 reframer.reset();
             }
         }
+
+        @Override
+        public int read(ExtractorInput input, PositionHolder seekPosition) throws IOException {
+            final int result = super.read(input, seekPosition);
+            if (result == RESULT_END_OF_INPUT) {
+                // A reader may hold its last frame until told the stream is over: DtsReader keeps each
+                // core frame until the next sync word, which might add a DTS-HD extension to it.
+                for (ReframingTrackOutput reframer : reframers) {
+                    reframer.endOfInput();
+                }
+            }
+            return result;
+        }
     }
 
     /** One audio track: passes through until it learns the codec, then reframes. */
@@ -139,6 +158,12 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
             started = false;
             if (reader != null) {
                 reader.seek();
+            }
+        }
+
+        void endOfInput() {
+            if (reader != null && started) {
+                reader.endOfInputReached();
             }
         }
 
@@ -237,7 +262,7 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
             }
             if (!started) {
                 final int skipped = syncOffset(start, end);
-                reader.packetStarted(timeUs + bytesToUs(skipped), 0);
+                reader.packetStarted(timeUs + bytesToUs(skipped, start + skipped, end), 0);
                 started = true;
             }
             final ParsableByteArray chunk = new ParsableByteArray(buffer, end);
@@ -287,13 +312,47 @@ final class AviAudioReframer extends ForwardingExtractorsFactory {
             return 0;
         }
 
-        private long bytesToUs(int bytes) {
-            final Format format = sourceFormat;
-            if (format == null || bytes <= 0) {
+        /**
+         * How long {@code bytes} of this stream play, judged by the frame header at {@code at}. The
+         * container cannot say: AviExtractor puts no bitrate on the format. 0 when the header does not
+         * parse (too few bytes left in the chunk, or a false sync word), which stamps the first frame up
+         * to one frame early — what it was before this existed.
+         */
+        private long bytesToUs(int bytes, int at, int end) {
+            final String mime = sourceFormat != null ? sourceFormat.sampleMimeType : null;
+            if (mime == null || bytes <= 0) {
                 return 0;
             }
-            final int bitrate = format.averageBitrate != Format.NO_VALUE
-                    ? format.averageBitrate : format.bitrate;
+            final byte[] header = Arrays.copyOfRange(buffer, at, end);
+            int bitrate = 0;
+            try {
+                switch (mime) {
+                    case MimeTypes.AUDIO_AC3:
+                    case MimeTypes.AUDIO_E_AC3:
+                        bitrate = Ac3Util.parseAc3SyncframeInfo(new ParsableBitArray(header)).bitrate;
+                        break;
+                    case MimeTypes.AUDIO_MPEG:
+                    case MimeTypes.AUDIO_MPEG_L2:
+                        if (header.length >= 4) {
+                            final MpegAudioUtil.Header mpeg = new MpegAudioUtil.Header();
+                            if (mpeg.setForHeaderData(((header[0] & 0xFF) << 24)
+                                    | ((header[1] & 0xFF) << 16) | ((header[2] & 0xFF) << 8)
+                                    | (header[3] & 0xFF))) {
+                                bitrate = mpeg.bitrate;
+                            }
+                        }
+                        break;
+                    case MimeTypes.AUDIO_DTS:
+                        bitrate = DtsUtil.parseDtsFormat(header, null, null, 0, CONTAINER_MIME, null)
+                                .averageBitrate;
+                        break;
+                    default:
+                        break;
+                }
+            } catch (RuntimeException e) {
+                // Truncated or bogus header: no correction.
+                bitrate = 0;
+            }
             if (bitrate <= 0) {
                 return 0;
             }

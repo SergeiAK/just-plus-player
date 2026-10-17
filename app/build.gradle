@@ -142,10 +142,16 @@ android {
         disable 'ExtraTranslation'
         disable 'UnsafeOptInUsageError'
     }
+    testOptions {
+        // JVM tests run the Media3 extractors, which log through android.util.Log; let the android.jar
+        // stubs answer with defaults instead of throwing.
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
     def media3_version = '1.11.0'
+    testImplementation 'junit:junit:4.13.2'
     implementation "androidx.media3:media3-session:$media3_version"
     implementation "androidx.media3:media3-datasource:$media3_version"
     // Media reads go through OkHttp rather than HttpURLConnection, for the connection pool (see
@@ -214,4 +220,9 @@ dependencies {
     implementation "io.sentry:sentry-android:$sentry_version"
     implementation project(path: ':doubletapplayerview')
     implementation fileTree(dir: "libs", include: ["lib-*.aar"])
+}
+// AviAudioReframerTest reads its sample files from here: ./gradlew testLatestUniversalDebugUnitTest -PaviTestDir=...
+tasks.withType(Test).configureEach {
+    systemProperty 'aviTestDir', project.findProperty('aviTestDir') ?: ''
+    testLogging { showStandardStreams = true; exceptionFormat = 'full' }
 }
