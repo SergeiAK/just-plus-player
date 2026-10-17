@@ -1,6 +1,36 @@
-# Just+ Player
+# Just+ Fork
 
 > **Personal fork.** This is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
+
+### How this fork differs from Just+
+
+Built from the Just+ 2.0.11 source, the last one published upstream: the official releases from 2.1.1 on are APK-only, and none of their changes are in this fork. What the fork changes:
+
+ * **Installs next to the official app.** Package `com.justplus.player.fork`, shown in the launcher as "Just+ Fork" with a FORK plate on its icon, with its own settings. Apps that hand the player series and episode details by package name (LAMPA among them) talk to the official app only; for them this one is a plain video player
+ * **Updates and the source link point here.** The in-app update check looks at this fork's releases, and About → Source code (and its QR code) open this repository
+
+**File browser**
+
+ * **Sort per folder.** A Sort button in the toolbar: name A→Z or Z→A, newest or oldest first. Each folder remembers its own order; folders stay above files either way
+ * **Start page button** in the toolbar, next to Search. On a TV it goes straight back to the start page from however deep you are; on a phone or tablet, to the top of the current destination
+ * **Stills for files on network shares.** Files on SMB and WebDAV get a frame from the video, read over the network one file at a time and cached
+ * **Date column.** The date sits at the end of each row with the full year, for files and folders
+ * **Long names** of the row in focus scroll instead of being cut off
+ * **Toolbar focus** is an accent disc, visible from across the room
+
+**Player on a TV**
+
+ * **Buttons above the seek bar** on the right — [quality] [playlist] subtitles, audio, more — and the buffer/network line in the bottom bar where they were. Aspect ratio moves into More
+ * **Up opens the controls on audio**, as Down opens them on the seek bar. From audio, Left is subtitles and Right is more
+ * **Focus** is a white disc under a dark glyph; the accent colour still means "on" (subtitles enabled)
+ * **New glyphs** for audio (a waveform), subtitles and playlist
+ * **Long titles** scroll in the header
+ * **Controls timeout** (Settings → On screen): 3.5, 5, 8 or 15 seconds, and an option to keep the controls while paused until Back
+
+**Other**
+
+ * **Bottom bar order on phones:** subtitles → audio → quality → playlist (upstream 2.0.11: quality → audio → subtitles → playlist)
+ * **Watch together on Android 6:** the room list no longer crashes there (`List.sort` needs Android 7; replaced with `Collections.sort`)
 
 [![Latest release](https://img.shields.io/github/v/release/just-plus-player/just-plus-player?logo=github&logoColor=white&cacheSeconds=3600)](https://github.com/just-plus-player/just-plus-player/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/just-plus-player/just-plus-player/total?logo=github&logoColor=white&label=downloads&cacheSeconds=3600)](https://github.com/just-plus-player/just-plus-player/releases)
