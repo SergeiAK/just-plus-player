@@ -232,6 +232,27 @@
     <item>30000</item>
   </string-array>
 
+  <!-- The reference's own scale and labels (2.4.4), so the stored value means the same thing in both:
+       seconds, with the unit in the title. -->
+  <string-array name="mode_switch_pause_entries" translatable="false">
+    <item>0</item>
+    <item>0.5</item>
+    <item>1</item>
+    <item>2</item>
+    <item>3</item>
+    <item>5</item>
+  </string-array>
+
+  <!-- Parsed with Integer.parseInt: a translated item would crash the app on that locale. -->
+  <string-array name="mode_switch_pause_values" translatable="false">
+    <item>0</item>
+    <item>500</item>
+    <item>1000</item>
+    <item>2000</item>
+    <item>3000</item>
+    <item>5000</item>
+  </string-array>
+
   <!-- Parsed with Integer.parseInt: a translated item would crash the app on that locale. -->
   <string-array name="audio_sync_values" translatable="false">
     <item>-1500</item>

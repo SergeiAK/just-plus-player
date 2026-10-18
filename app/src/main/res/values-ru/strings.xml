@@ -515,6 +515,7 @@
     <string name="pref_resolution_matching">Подбирать разрешение под видео</string>
     <string name="pref_resolution_matching_on">Разрешение тоже подбирается, не только частота</string>
     <string name="pref_resolution_matching_off">Подбирается только частота, разрешение остаётся</string>
+    <string name="pref_mode_switch_pause">Пауза после смены режима экрана, с</string>
     <string name="pref_audio_passthrough_force">Передавать, даже если не заявлено</string>
     <string name="pref_audio_passthrough_force_on">Отправляется, даже если устройство говорит «нет»</string>
     <string name="pref_audio_passthrough_force_off">Отправляется только то, что принимает маршрут HDMI</string>

@@ -43,7 +43,6 @@ import android.graphics.drawable.InsetDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.Icon;
-import android.hardware.display.DisplayManager;
 import android.media.AudioManager;
 import android.media.MediaCodecList;
 import android.media.audiofx.AudioEffect;
@@ -360,10 +359,12 @@ public class PlayerActivity extends Activity {
     // (stuck buffering, a broken next-episode URL, etc.) a friendly LOAD_TIMEOUT message is shown.
     // Such stalls often produce no PlaybackException, so onPlayerError alone would never catch them.
     private static final long VIDEO_LOAD_TIMEOUT_MS = 30_000L;
-    /** How long to wait for a requested display mode to report back before starting playback anyway. */
-    private static final long FRAME_RATE_SWITCH_TIMEOUT_MS = 3_000L;
-    // A resolution change is an HDMI renegotiation, not a rate nudge; the reference player allows 5.8 s.
-    private static final long RESOLUTION_SWITCH_TIMEOUT_MS = 6_000L;
+    /**
+     * How long a start may wait for a frame-rate probe on its own extractor that never reports back. The
+     * pause after a mode change is the viewer's ({@link Prefs#modeSwitchPauseMs}); this is only for a
+     * probe that hangs, which would otherwise leave the file on its first frame for good.
+     */
+    private static final long FRAME_RATE_PROBE_GIVE_UP_MS = 6_000L;
     // Bytes seen when the watchdog was last armed, so its verdict is "nothing is arriving" rather than
     // "this is taking a while". Filling the first buffer of a large torrent-backed file routinely needs
     // several of these windows — the backend fetches pieces from peers at whatever rate it can, and the
@@ -1038,10 +1039,11 @@ public class PlayerActivity extends Activity {
     // local file. Kept because the load control cannot be asked afterwards, and because ExoPlayer reads
     // the value once when it is constructed: changing the setting takes effect on the next player.
     private int backBufferAppliedMs;
-    // Whether the mode just asked for changes the frame and not only its rate. Set by
-    // Utils.handleFrameRate, read once by the caller that arms the give-up timer: the two waits differ by
-    // an HDMI renegotiation. Written from that probe's background thread as well as the UI one.
-    volatile boolean resolutionSwitchRequested;
+    // When the display was last asked for a different mode (uptimeMillis), 0 for never. Stamped by
+    // Utils.chooseDisplayMode, from the early request off the container head as well as the settled one,
+    // and read by holdForModeSwitch. Not cleared per file: a mode asked for a second ago is still
+    // changing under whatever plays next, and an old stamp simply has nothing left to wait out.
+    long modeSwitchRequestedAt;
 
     public static boolean restoreControllerTimeout = false;
     public static boolean shortControllerTimeout = false;
@@ -1270,8 +1272,6 @@ public class PlayerActivity extends Activity {
     private long reportPosition;
     private long reportDuration;
 
-    DisplayManager displayManager;
-    DisplayManager.DisplayListener displayListener;
     SubtitleFinder subtitleFinder;
     // The media whose neighbouring subtitle names are still to be guessed, or null when there is nothing
     // waiting. Set while the intent is read, spent on the first track change — see startSubtitleGuess().
@@ -3079,12 +3079,9 @@ public class PlayerActivity extends Activity {
         // playWhenReady is set, and the STATE_READY handler would call play() the moment the buffer fills,
         // leaving video playing with sound in the background. Nothing is latched for a resume.
         play = false;
-        // The frame-rate switch registers this listener while waiting to auto-play; with play cleared behind
-        // its back it would never unregister itself.
+        // The pause after a mode change is a timer holding the auto-play; with play cleared it has nothing
+        // left to spend.
         playerView.removeCallbacks(frameRateGiveUpRunnable);
-        if (displayManager != null && displayListener != null) {
-            displayManager.unregisterDisplayListener(displayListener);
-        }
         player.pause();
         // Give the bitstream output back before leaving. A passthrough AudioTrack holds the receiver's
         // AC3/DTS route for as long as the player owns it, and that route is exclusive: while it is ours
@@ -5864,12 +5861,6 @@ public class PlayerActivity extends Activity {
 
     /** The media the display was already asked about, so it is asked once and not once per parse. */
     private String earlyModeRequestedUri;
-    /**
-     * Whether that early request actually set a mode in motion. Read once, by the search at the end of
-     * loading: it finds the new mode already in place and would otherwise let playback go while the
-     * panel is still changing to it.
-     */
-    volatile boolean earlyModeSwitchRequested;
 
     /**
      * Asks the display for this video's mode as soon as the container says what it carries — which is
@@ -11940,7 +11931,6 @@ public class PlayerActivity extends Activity {
         containerTracks.clear();
         containerTracksUri = null;
         earlyModeRequestedUri = null;
-        earlyModeSwitchRequested = false;
         resolvedTrackNames.clear();
 
         // Also drops a deferred error here, not only in releasePlayer: onNewIntent (sharing a video into
@@ -12865,9 +12855,8 @@ public class PlayerActivity extends Activity {
     private final Runnable frameRateGiveUpRunnable = this::frameRateSettled;
 
     /**
-     * Nothing more to wait for from the display: disarm the listener armed for a mode change and spend
-     * the play the loading player is holding. Every path that does not request a new mode ends here, the
-     * ones that give up early included — those used to leave the play pending for good.
+     * Nothing more to wait for from the display: spend the play the loading player is holding. Every
+     * path that does not request a new mode ends here, and so does the pause after one.
      *
      * <p>Including the one inside {@link Utils#handleFrameRate}, which decided no mode change was needed.
      * That used to spend the play itself, and its own version of this did not consult the room: a client
@@ -12876,14 +12865,34 @@ public class PlayerActivity extends Activity {
      * mode, which is an emulator and a box with a fixed output, or a phone already at its top rate.
      */
     void frameRateSettled() {
-        earlyModeSwitchRequested = false;
         playerView.removeCallbacks(frameRateGiveUpRunnable);
-        if (displayManager != null && displayListener != null) {
-            displayManager.unregisterDisplayListener(displayListener);
-        }
         if (play) {
             play = false;
             playPending();
+        }
+    }
+
+    /**
+     * Hold the pending play until the viewer's pause ({@link Prefs#modeSwitchPauseMs}) has passed since the
+     * display was last asked for a new mode, or spend it now when that was long enough ago, or never.
+     *
+     * <p>Counted from the request and not from the display's report of it, which is what this used to wait
+     * for. The report comes when the system accepts the mode, not when the panel shows a picture again:
+     * measured on an LG behind a Dune, a start spent on the report — half a second after a change of frame
+     * — had the sound going two seconds before the first frame was visible. And the report could not be
+     * relied on to come at all: the early request off the container head switches before anything listens
+     * for it, so those starts only ever went when the give-up timer ran out — 3 s, or 6 s for a frame
+     * change — which made the pause right by accident and its length nobody's choice.
+     */
+    void holdForModeSwitch() {
+        final long wait = modeSwitchRequestedAt == 0 ? 0
+                : modeSwitchRequestedAt + mPrefs.modeSwitchPauseMs - SystemClock.uptimeMillis();
+        if (wait > 0 && play) {
+            Utils.log("display mode: start held " + wait + " ms, the pause after a switch");
+            playerView.removeCallbacks(frameRateGiveUpRunnable);
+            playerView.postDelayed(frameRateGiveUpRunnable, wait);
+        } else {
+            frameRateSettled();
         }
     }
 
@@ -12907,70 +12916,35 @@ public class PlayerActivity extends Activity {
     }
 
     /**
-     * Ask the display for a mode that fits the video that is starting, and hold the pending play until
-     * it settles. Runs for the file a session opens with from the loading branch, and for a later
+     * Ask the display for a mode that fits the video that is starting, and hold the pending play for the
+     * pause after it. Runs for the file a session opens with from the loading branch, and for a later
      * playlist item from {@link #matchDisplayModeForNewItem()} — the early request off the container head
      * reaches neither an item whose rate the head does not state nor any item at all while the frame is
      * being matched too, so without this an episode after the first kept the mode the one before it left.
      */
     private void matchDisplayMode() {
-        boolean switched = false;
-        if (mPrefs.frameRateMatching) {
-            if (play) {
-                if (displayManager == null) {
-                    displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
-                }
-                if (displayListener == null) {
-                    displayListener = new DisplayManager.DisplayListener() {
-                        @Override
-                        public void onDisplayAdded(int displayId) {
-
-                        }
-
-                        @Override
-                        public void onDisplayRemoved(int displayId) {
-
-                        }
-
-                        @Override
-                        public void onDisplayChanged(int displayId) {
-                            frameRateSettled();
-                        }
-                    };
-                }
-                displayManager.registerDisplayListener(displayListener, null);
-            }
-            // The rate the stats panel prints is the rate the display needs, and by now the app
-            // usually has it. Measuring it again through a second MediaExtractor costs seconds
-            // and cannot open HLS at all, which is why online sources never switched.
-            final float rate = videoFrameRate();
-            final int width = videoDisplayWidth();
-            if (rate > 0) {
-                Utils.handleFrameRate(this, rate, width);
-                switched = true;
-            } else {
-                // Nothing published a rate — a container neither Media3 nor our parser reads.
-                switched = Utils.switchFrameRate(this, currentMediaUri(), width);
-            }
+        if (!mPrefs.frameRateMatching) {
+            frameRateSettled();
+            return;
         }
-        if (switched) {
-            // A frame change renegotiates the link, which takes longer than a rate change:
-            // the reference player waits close to six seconds for one. The floor is only a
-            // floor — play starts as soon as the display reports back — so the cost of
-            // the longer one is paid only when the display never reports at all.
-            // A requested mode either comes back as onDisplayChanged or never comes back at
-            // all: a panel can apply a refresh-rate-only change without reporting one, and a
-            // request the system declines reports nothing. Without a floor the pending play is
-            // never spent — on a phone whose display is pinned to 60 Hz the file just sits on
-            // its first frame, paused, with no spinner and no error.
-            // Only ever one of these armed, and only while a start is actually being held. A match made
-            // for an item that is already playing has no pending play to spend, and a timer left armed
-            // for it would spend the next one's: a player rebuilt inside the window — a quality switch,
-            // a recovery, a return from the background — would start before its display had settled.
+        // The rate the stats panel prints is the rate the display needs, and by now the app
+        // usually has it. Measuring it again through a second MediaExtractor costs seconds
+        // and cannot open HLS at all, which is why online sources never switched.
+        final float rate = videoFrameRate();
+        final int width = videoDisplayWidth();
+        if (rate > 0) {
+            // Decides and, through holdForModeSwitch, either holds the play or spends it.
+            Utils.handleFrameRate(this, rate, width);
+        } else if (Utils.switchFrameRate(this, currentMediaUri(), width)) {
+            // Nothing published a rate — a container neither Media3 nor our parser reads — so a probe
+            // measures it on its own thread and decides when it is done. Only a probe that never reports
+            // is waited out here. Only while a start is actually being held: a timer left armed for an item
+            // that is already playing would spend the next one's play — a player rebuilt inside the window
+            // (a quality switch, a recovery, a return from the background) would start before its display
+            // had settled.
             playerView.removeCallbacks(frameRateGiveUpRunnable);
             if (play) {
-                playerView.postDelayed(frameRateGiveUpRunnable, resolutionSwitchRequested
-                        ? RESOLUTION_SWITCH_TIMEOUT_MS : FRAME_RATE_SWITCH_TIMEOUT_MS);
+                playerView.postDelayed(frameRateGiveUpRunnable, FRAME_RATE_PROBE_GIVE_UP_MS);
             }
         } else {
             frameRateSettled();

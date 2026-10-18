@@ -515,6 +515,7 @@
     <string name="pref_resolution_matching">Підбирати роздільність під відео</string>
     <string name="pref_resolution_matching_on">Добирається й роздільність, не лише частота екрана</string>
     <string name="pref_resolution_matching_off">Добирається лише частота, роздільність лишається</string>
+    <string name="pref_mode_switch_pause">Пауза після зміни режиму екрана, с</string>
     <string name="pref_audio_passthrough_force">Передавати, навіть якщо не заявлено</string>
     <string name="pref_audio_passthrough_force_on">Надсилається, навіть якщо пристрій каже «не беру»</string>
     <string name="pref_audio_passthrough_force_off">Надсилається лише те, що приймає маршрут по HDMI</string>

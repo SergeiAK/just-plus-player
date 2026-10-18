@@ -1465,38 +1465,32 @@ public class Utils {
      * moment the container says what it is carrying, which is before the decoder has published a format
      * and well before the first frame: the reference player switches at that point too, between opening
      * the file and building its player, and on the boxes this matters for it is the decoder meeting an
-     * already-settled display that they care about. Nothing is armed and nothing is held back — if
-     * the mode never changes, the settled path at the end of loading still runs and still starts
-     * playback.
+     * already-settled display that they care about. Nothing is held back here — the request only stamps
+     * the moment it was made, and the settled path at the end of loading is the one that waits out the
+     * pause from that moment and starts playback.
      */
     @RequiresApi(api = Build.VERSION_CODES.M)
     static void requestFrameRateEarly(final PlayerActivity activity, float frameRate, int videoWidth) {
-        activity.runOnUiThread(() ->
-                activity.earlyModeSwitchRequested = chooseDisplayMode(activity, frameRate, videoWidth));
+        activity.runOnUiThread(() -> chooseDisplayMode(activity, frameRate, videoWidth));
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     static void handleFrameRate(final PlayerActivity activity, float frameRate, int videoWidth) {
         activity.runOnUiThread(() -> {
-            // Nothing to switch — unless the early request already asked for the very mode this
-            // search now finds in place. The display reports a mode as soon as the system accepts it,
-            // which is not the same moment the panel has finished changing to it, so a switch that was
-            // asked for a second ago is still worth waiting out: the caller's timer and the display's
-            // own callback are what that wait is made of.
-            if (!chooseDisplayMode(activity, frameRate, videoWidth)
-                    && !activity.earlyModeSwitchRequested) {
-                activity.frameRateSettled();
-            }
+            // Whether it is this search that asks or the early request that already did, the wait is the
+            // same one, counted from the request: the display reports a mode as soon as the system
+            // accepts it, which on an LG is some two seconds before the panel shows a picture again.
+            chooseDisplayMode(activity, frameRate, videoWidth);
+            activity.holdForModeSwitch();
         });
     }
 
-    /** @return whether a mode change was actually requested, so the caller knows to wait for it. */
+    /** @return whether a mode change was actually requested; its moment goes to modeSwitchRequestedAt. */
     @RequiresApi(api = Build.VERSION_CODES.M)
     private static boolean chooseDisplayMode(final PlayerActivity activity, float frameRate,
                                              int videoWidth) {
         {
             boolean switchingModes = false;
-            activity.resolutionSwitchRequested = false;
 
             // A detached decor view answers null. Falling through to the settled path rather than returning:
             // the caller has already told the player a switch is pending, so bailing out here left the
@@ -1585,10 +1579,7 @@ public class Utils {
                                 + (switchingModes ? ", switching to " + modeText(modeBest)
                                         : ", staying put"));
                         if (switchingModes) {
-                            // A different frame is a longer wait than a different rate — the sink
-                            // renegotiates — so the caller gives it more time before giving up.
-                            activity.resolutionSwitchRequested =
-                                    modeBest.getPhysicalWidth() != activeMode.getPhysicalWidth();
+                            activity.modeSwitchRequestedAt = SystemClock.uptimeMillis();
                             layoutParams.preferredDisplayModeId = modeBest.getModeId();
                             window.setAttributes(layoutParams);
                         }

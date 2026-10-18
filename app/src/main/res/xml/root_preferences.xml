@@ -257,6 +257,16 @@
                     app:summaryOff="@string/pref_resolution_matching_off"
                     app:title="@string/pref_resolution_matching" />
 
+                <!-- Under the rate switch too: no mode is asked for without it, so there is nothing to wait out. -->
+                <ListPreference
+                    app:key="modeSwitchPauseMs"
+                    app:defaultValue="3000"
+                    app:dependency="frameRateMatching"
+                    app:entries="@array/mode_switch_pause_entries"
+                    app:entryValues="@array/mode_switch_pause_values"
+                    app:title="@string/pref_mode_switch_pause"
+                    app:useSimpleSummaryProvider="true" />
+
                 <SwitchPreferenceCompat
                     app:key="allowSystemFrameRate"
                     app:defaultValue="true"

@@ -76,6 +76,7 @@ class Prefs {
     private static final String PREF_KEY_BACK_BUFFER_MS = "backBufferMs";
     private static final String PREF_KEY_DISPLAY_RESOLUTION_MATCHING = "displayResolutionMatching";
     private static final String PREF_KEY_ALLOW_SYSTEM_FRAMERATE = "allowSystemFrameRate";
+    private static final String PREF_KEY_MODE_SWITCH_PAUSE_MS = "modeSwitchPauseMs";
     private static final String PREF_KEY_REPEAT_TOGGLE = "repeatToggle";
     private static final String PREF_KEY_PLAYLIST_GRID = "playlistGrid";
     private static final String PREF_KEY_TV_SINGLE_BACK = "tvSingleBack";
@@ -253,6 +254,13 @@ class Prefs {
     // on a television that has already been set to 4K it buys nothing.
     public boolean displayResolutionMatching = false;
     public boolean allowSystemFrameRate = true;
+    // How long a start waits after the display was asked for a new mode, counted from the request. The
+    // display reports a mode when the system accepts it, not when the panel shows a picture again: an LG
+    // behind a Dune reports in 0.6 s and stays dark — sound included, since that goes through the panel
+    // too — for about 3 s, a change of rate and a change of frame alike. Started without a pause, the
+    // first two seconds were lost; at 3 s from the request the first frame and the first sound were there.
+    // The scale is the reference's, its default 0 is not.
+    public int modeSwitchPauseMs = 3_000;
     public boolean repeatToggle = false;
     /** The playlist panel draws frames in a grid rather than a row per file. Off is the row per file. */
     /**
@@ -490,6 +498,8 @@ class Prefs {
         displayResolutionMatching = mSharedPreferences.getBoolean(PREF_KEY_DISPLAY_RESOLUTION_MATCHING,
                 displayResolutionMatching);
         allowSystemFrameRate = mSharedPreferences.getBoolean(PREF_KEY_ALLOW_SYSTEM_FRAMERATE, !Utils.isTvBox(mContext));
+        modeSwitchPauseMs = Integer.parseInt(mSharedPreferences.getString(PREF_KEY_MODE_SWITCH_PAUSE_MS,
+                String.valueOf(modeSwitchPauseMs)));
         repeatToggle = mSharedPreferences.getBoolean(PREF_KEY_REPEAT_TOGGLE, repeatToggle);
         playlistGrid = mSharedPreferences.getBoolean(PREF_KEY_PLAYLIST_GRID, playlistGrid);
         tvSingleBack = mSharedPreferences.getBoolean(PREF_KEY_TV_SINGLE_BACK, tvSingleBack);
