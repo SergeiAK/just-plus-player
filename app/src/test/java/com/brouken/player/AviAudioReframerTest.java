@@ -143,6 +143,71 @@ public class AviAudioReframerTest {
                 + " frames match the full read from frame " + first);
     }
 
+    /**
+     * A real DivX 5 packed stream (the first 30 s of a rip, cut with -c copy), against FFmpeg's
+     * mpeg4_unpack_bframes (murder30.framecrc: ffmpeg -i murder30.avi -map 0:v -c copy
+     * -bsf:v mpeg4_unpack_bframes -f framecrc): the same frames, byte for byte, in the same order.
+     * Their times are checked by type: every frame shown once, one slot apart. Writes the sequence
+     * to murder30.ours.txt (index, coding type, size, slot shown) for reading by eye.
+     */
+    @Test
+    public void mpeg4PackedUnpackedAsFfmpeg() throws Exception {
+        final File file = testFile("murder30.avi");
+        final File reference = testFile("murder30.framecrc");
+        final List<Long> crcs = new ArrayList<>();
+        for (String line : java.nio.file.Files.readAllLines(reference.toPath())) {
+            if (line.startsWith("#") || line.trim().isEmpty()) continue;
+            crcs.add(Long.parseLong(line.split(",")[5].trim().substring(2), 16));
+        }
+        final Track video = extract(file, true, -1).video();
+        final StringBuilder dump = new StringBuilder();
+        final long frameUs = 40_000;
+        for (int i = 0; i < video.samples.size(); i++) {
+            final byte[] s = video.samples.get(i);
+            dump.append(i).append('\t').append(codingType(s)).append('\t').append(s.length)
+                    .append('\t').append(video.timesUs.get(i) / frameUs).append('\n');
+        }
+        java.nio.file.Files.write(new File(file.getParentFile(), "murder30.ours.txt").toPath(),
+                dump.toString().getBytes());
+        // A cut ends mid-group; the last anchor and its B-frames are timed from the end of movi.
+        assertEquals("frames", crcs.size(), video.samples.size());
+        int mismatches = 0;
+        for (int i = 0; i < crcs.size(); i++) {
+            if (adler32From0(video.samples.get(i)) != crcs.get(i)) {
+                if (mismatches++ < 10) {
+                    System.out.println("frame " + i + ": ours " + Long.toHexString(adler32From0(
+                            video.samples.get(i))) + " size " + video.samples.get(i).length
+                            + ", ffmpeg " + Long.toHexString(crcs.get(i)));
+                }
+            }
+        }
+        assertEquals("frames differing from mpeg4_unpack_bframes", 0, mismatches);
+        final List<Long> sorted = new ArrayList<>(video.timesUs);
+        java.util.Collections.sort(sorted);
+        for (int i = 0; i < sorted.size(); i++) {
+            assertEquals("shown once each, one frame apart", i * frameUs, (long) sorted.get(i));
+        }
+    }
+
+    private static String codingType(byte[] s) {
+        for (int i = 0; i + 4 < s.length; i++) {
+            if (s[i] == 0 && s[i + 1] == 0 && s[i + 2] == 1 && (s[i + 3] & 0xFF) == 0xB6) {
+                return "IPBS".substring((s[i + 4] & 0xFF) >> 6, ((s[i + 4] & 0xFF) >> 6) + 1);
+            }
+        }
+        return "-";
+    }
+
+    /** FFmpeg's framecrc: av_adler32_update(0, ...), which starts from 0 rather than Adler's 1. */
+    private static long adler32From0(byte[] data) {
+        long a = 0, b = 0;
+        for (byte x : data) {
+            a = (a + (x & 0xFF)) % 65521;
+            b = (b + a) % 65521;
+        }
+        return (b << 16) | a;
+    }
+
     private static int indexOf(Track track, byte[] sample) {
         for (int i = 0; i < track.samples.size(); i++) {
             if (Arrays.equals(track.samples.get(i), sample)) return i;

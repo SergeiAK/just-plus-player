@@ -18,7 +18,8 @@ import java.util.List;
  *   <li><b>Unpacking</b> ({@code mpeg4_unpack_bframes}). DivX 5 "packed bitstream" puts a P-frame and
  *       the B-frame shown before it into one chunk and a placeholder N-VOP into the next. The second
  *       VOP is moved into the placeholder's slot, so every chunk carries one frame again. The
- *       placeholder is recognised by size, as FFmpeg does it.</li>
+ *       placeholder is recognised by size, as FFmpeg does it. The "p" mark in the DivX user data
+ *       is cleared in every chunk that carries it, as FFmpeg does, byte for byte.</li>
  *   <li><b>Presentation times</b> (genpts). A B-frame is shown in its own slot; an I-, P- or S-frame
  *       in the slot of the next one of those, so it waits for the B-frames decoded after it. FFmpeg
  *       then shows everything one slot late; this subtracts that slot, which leaves a stream without
@@ -61,13 +62,13 @@ import java.util.List;
   /** A chunk of the stream, in file order. Zero-size chunks are not passed in. */
   void onChunk(byte[] data, int size, long slot, boolean keyFrame) {
     lastSlot = slot;
+    clearPackedFlag(data, size);
     final int[] vops = vopStarts(data, size);
     if (vops.length >= 2) {
       if (packedB != null) {
         // Two packed chunks in a row with no placeholder between: the held one has no slot left.
         packedB = null;
       }
-      clearPackedFlag(data, size);
       final int split = vops[1] - 3;
       onFrame(copy(data, 0, split), slot, keyFrame);
       if (split < size - 3) {
@@ -166,8 +167,10 @@ import java.util.List;
   }
 
   /**
-   * DivX marks a packed stream in its user data ("DivX503b1393p"). FFmpeg rewrites the trailing p to
-   * n once the stream is unpacked, so a decoder that reads the mark does not unpack it a second time.
+   * DivX marks a packed stream in its user data ("DivX503b1393p"). FFmpeg's mpeg4_unpack_bframes
+   * overwrites that p with a zero byte once the stream is unpacked, so a decoder that reads the mark
+   * does not unpack it a second time; the same is done here (checked against its output on a DivX 5
+   * rip: identical frames).
    */
   private static void clearPackedFlag(byte[] data, int size) {
     for (int i = 0; i + 8 < size; i++) {
@@ -189,7 +192,7 @@ import java.util.List;
           last--;
         }
         if (data[last] == 'p') {
-          data[last] = 'n';
+          data[last] = 0;
         }
       }
       i = end - 1;

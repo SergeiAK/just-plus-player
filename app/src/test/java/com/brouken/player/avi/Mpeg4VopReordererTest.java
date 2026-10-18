@@ -89,7 +89,7 @@ public class Mpeg4VopReordererTest {
         r.onChunk(chunk, chunk.length, 1, false);
         r.flush();
         final String text = new String(written.get(1), java.nio.charset.StandardCharsets.ISO_8859_1);
-        assertEquals(true, text.contains("DivX503b1393n"));
+        assertEquals(true, text.contains("DivX503b1393\0"));
     }
 
     /**
