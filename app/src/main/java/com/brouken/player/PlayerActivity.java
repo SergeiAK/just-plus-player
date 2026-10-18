@@ -13063,7 +13063,16 @@ public class PlayerActivity extends Activity {
                 .create();
         // On a remote the first button is the one the D-pad lands on unless told otherwise, and that is
         // "start over" in a dialog laid out negative-first: carrying on is what one press of OK should do.
-        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus());
+        // Default focus as well as a request: in touch mode the request does nothing, and the key that
+        // leaves touch mode puts focus on the default — the first button without this. Measured on the Dune
+        // after a tap (19.10.2026): the first OK moved to "start over", the second one pressed it.
+        dialog.setOnShowListener(d -> {
+            final Button resume = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                resume.setFocusedByDefault(true);
+            }
+            resume.requestFocus();
+        });
         dialog.setOnDismissListener(d -> {
             if (resumeDialog == dialog) {
                 resumeDialog = null;
