@@ -46,7 +46,7 @@
 
     <!-- The launcher icon's own ground, a shade under the wash's plum. Named because the About block
          draws the same tile the launcher does. -->
-    <color name="app_icon_ground">#FF150B33</color>
+    <color name="app_icon_ground">#FF25282E</color>
 
     <!-- M3 on-primary: the ink that sits on the brand, e.g. the switch handle when it is on. -->
     <color name="brand_on">#FF5F1411</color>

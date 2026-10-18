@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The launcher mark with the fork's FORK plate over its foot, so this build is not mistaken for the
-     official one on a launcher that shows both. The monochrome layer keeps the bare mark: a themed icon
-     is one ink, and a plate in it would be a block. -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@drawable/ic_launcher_foreground" />
-    <item android:drawable="@drawable/ic_launcher_fork_plate" />
-</layer-list>
