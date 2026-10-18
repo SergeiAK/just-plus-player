@@ -298,4 +298,18 @@
     <item>1250</item>
     <item>1500</item>
   </string-array>
+
+  <string-array name="resume_mode_entries">
+    <item>@string/pref_resume_ask_open</item>
+    <item>@string/pref_resume_ask_every</item>
+    <item>@string/pref_resume_always</item>
+    <item>@string/pref_resume_never</item>
+  </string-array>
+
+  <string-array name="resume_mode_values">
+    <item>askOpen</item>
+    <item>askEvery</item>
+    <item>always</item>
+    <item>never</item>
+  </string-array>
 </resources>

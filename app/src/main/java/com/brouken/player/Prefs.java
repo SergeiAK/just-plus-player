@@ -128,6 +128,7 @@ class Prefs {
     private static final String PREF_KEY_SUBTITLE_SECONDARY_TEXT_COLOR = "subtitleSecondaryTextColor";
     private static final String PREF_KEY_SUBTITLE_SECONDARY_BACKGROUND = "subtitleSecondaryBackground";
     private static final String PREF_KEY_SUBTITLE_EDGE = "subtitleEdge";
+    private static final String PREF_KEY_RESUME_MODE = "resumeMode";
     private static final String PREF_KEY_SKIP_ENABLED = "skipEnabled";
     private static final String PREF_KEY_SKIP_MODE = "skipMode";
     private static final String PREF_KEY_SKIP_MODE_CREDITS = "skipModeCredits";
@@ -381,6 +382,8 @@ class Prefs {
     public int subtitleSecondaryTextColor = 0xFFCCCCCC;
     public int subtitleSecondaryBackgroundColor = 0x80000000;
     public float subtitleSecondaryScale = 1.0f;
+    /** Where a remembered position starts a video: one of the {@link ResumePolicy} modes. */
+    public String resumeMode = ResumePolicy.ASK_OPEN;
     public boolean skipEnabled = true;
     public String skipMode = SKIP_MODE_BRIEF;
     public String skipModeCredits = SKIP_MODE_BRIEF;
@@ -574,6 +577,7 @@ class Prefs {
         subtitleSecondaryBackgroundColor = Color.parseColor(
                 mSharedPreferences.getString(PREF_KEY_SUBTITLE_SECONDARY_BACKGROUND, "#80000000"));
         subtitleEdgeType = Integer.parseInt(mSharedPreferences.getString(PREF_KEY_SUBTITLE_EDGE, String.valueOf(subtitleEdgeType)));
+        resumeMode = mSharedPreferences.getString(PREF_KEY_RESUME_MODE, resumeMode);
         skipEnabled = mSharedPreferences.getBoolean(PREF_KEY_SKIP_ENABLED, skipEnabled);
         skipMode = mSharedPreferences.getString(PREF_KEY_SKIP_MODE, skipMode);
         skipModeCredits = mSharedPreferences.getString(PREF_KEY_SKIP_MODE_CREDITS, skipModeCredits);

@@ -214,6 +214,14 @@
             app:title="@string/pref_video_header">
 
             <ListPreference
+                app:key="resumeMode"
+                app:defaultValue="askOpen"
+                app:entries="@array/resume_mode_entries"
+                app:entryValues="@array/resume_mode_values"
+                app:title="@string/pref_resume_mode"
+                app:useSimpleSummaryProvider="true" />
+
+            <ListPreference
                 app:key="screenOrientation"
                 app:defaultValue="0"
                 app:entries="@array/screen_orientation_entries"

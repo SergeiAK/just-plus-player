@@ -934,6 +934,14 @@ public class PlayerActivity extends Activity {
     // can reach from a frame-rate probe running on a background thread: a snapshot taken before it started
     // would still play after onStop cleared this.
     boolean play;
+    // Why the next initializePlayer starts a video, for the resume question (ResumePolicy). Set only where a
+    // video is opened or another one is moved to; null for every rebuild under the viewer, which keeps its
+    // position without asking, and consumed by initializePlayer.
+    private ResumePolicy.Start resumeStart;
+    // The same, for the player that is loading: decided when its held start is spent (playPending), once
+    // the length and the credits are known. Null when there is nothing to decide.
+    private ResumePolicy.Start resumeCheck;
+    private AlertDialog resumeDialog;
     private float subtitlesScale;
     private float secondarySubtitlesScale;
     private boolean isScrubbing;
@@ -1604,6 +1612,7 @@ public class PlayerActivity extends Activity {
                 if (parsedUri.isAbsolute()) {
                     mPrefs.updateMedia(this, parsedUri, null);
                     focusPlay = true;
+                    resumeStart = ResumePolicy.Start.OPEN;
                 }
             }
         } else if (launchIntent.getData() != null) {
@@ -1614,6 +1623,7 @@ public class PlayerActivity extends Activity {
             // that session on here instead of opening the empty state over a video that is still running.
             setIntent(inheritedIntent);
             handleViewIntent(inheritedIntent);
+            resumeStart = null;
         } else if (isLauncherStart(launchIntent)) {
             // Nothing came in — a launcher start opens on the empty state instead of resuming
             // whatever was last watched. Only a launcher start: every other way an activity is handed a
@@ -1622,6 +1632,10 @@ public class PlayerActivity extends Activity {
         }
         // After the intent, so a session being restored wins over the launch extras it was started with.
         restoreApiSession(savedInstanceState != null ? savedInstanceState : inheritedState);
+        if (savedInstanceState != null) {
+            // The same intent handed back to an activity the system recreated: a return, not an opening.
+            resumeStart = null;
+        }
 
         coordinatorLayout = findViewById(R.id.coordinatorLayout);
         dimOverlay = findViewById(R.id.dim_overlay);
@@ -3476,6 +3490,10 @@ public class PlayerActivity extends Activity {
                     mPrefs.updatePosition((long) bundle.getInt(API_POSITION));
                 }
             }
+            // A launcher that names the position has asked its own question, and a room says where everybody
+            // is: either is taken as it is. Everything else opened here is the viewer's own file.
+            resumeStart = applyingRoomMedia || (bundle != null && bundle.containsKey(API_POSITION))
+                    ? null : ResumePolicy.Start.OPEN;
         }
         focusPlay = true;
         checkRoomMedia(false, false);
@@ -3512,6 +3530,7 @@ public class PlayerActivity extends Activity {
                         resetApiAccess();
                         mPrefs.updateMedia(this, parsedUri, null);
                         focusPlay = true;
+                        resumeStart = ResumePolicy.Start.OPEN;
                         initializePlayer();
                     }
                 }
@@ -12659,6 +12678,16 @@ public class PlayerActivity extends Activity {
 
             applyStoredFrameMode();
 
+            resumeCheck = resumeStart;
+            resumeStart = null;
+            // "Always from the start" needs neither the length nor the credits, so it does not load the
+            // remembered place only to leave it once the display has settled.
+            final boolean startOver = resumeCheck != null && ResumePolicy.NEVER.equals(mPrefs.resumeMode);
+            if (startOver) {
+                resumeCheck = null;
+            }
+            final long startPosition = startOver ? 0 : mPrefs.getPosition();
+
             MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
                     .setUri(mPrefs.mediaUri)
                     .setMimeType(mPrefs.mediaType);
@@ -12697,9 +12726,9 @@ public class PlayerActivity extends Activity {
                 if (remembered != null && apiPlaylistStartIndex >= 0 && apiPlaylistStartIndex < items.size()) {
                     items.set(apiPlaylistStartIndex, withSubtitle(items.get(apiPlaylistStartIndex), remembered));
                 }
-                player.setMediaItems(items, apiPlaylistStartIndex, mPrefs.getPosition());
+                player.setMediaItems(items, apiPlaylistStartIndex, startPosition);
             } else {
-                player.setMediaItem(mediaItemBuilder.build(), mPrefs.getPosition());
+                player.setMediaItem(mediaItemBuilder.build(), startPosition);
             }
 
             try {
@@ -12951,8 +12980,104 @@ public class PlayerActivity extends Activity {
         }
     }
 
+    /**
+     * Decide where the video the held start belongs to begins, now that the player is ready and knows its
+     * length and, for most sources, its credits. True when the start now waits for the viewer to answer.
+     */
+    private boolean resolveResume() {
+        final ResumePolicy.Start start = resumeCheck;
+        resumeCheck = null;
+        if (start == null || player == null) {
+            return false;
+        }
+        final long position = player.getCurrentPosition();
+        final long duration = player.getDuration();
+        final ResumePolicy.Decision decision = ResumePolicy.decide(mPrefs.resumeMode, start, position,
+                duration == C.TIME_UNSET ? 0 : duration, creditsMs());
+        Utils.log("resume: " + decision + " at " + position + " of " + duration + " ms, " + start
+                + ", " + mPrefs.resumeMode);
+        if (decision == ResumePolicy.Decision.START_OVER) {
+            player.seekTo(0);
+        } else if (decision == ResumePolicy.Decision.ASK) {
+            askResume(position);
+            return true;
+        }
+        return false;
+    }
+
+    /** The end-credits segments of the current item, {@code {startMs, endMs}} each; null when none. */
+    private long[][] creditsMs() {
+        if (skipManager == null || !skipManager.hasSegments()) {
+            return null;
+        }
+        final List<long[]> credits = new ArrayList<>();
+        for (final SkipSegment segment : skipManager.getSegments()) {
+            if (segment.credits) {
+                credits.add(new long[] {segment.startMs(), segment.endMs()});
+            }
+        }
+        return credits.isEmpty() ? null : credits.toArray(new long[0][]);
+    }
+
+    /**
+     * How long a playlist item plays, before it has been prepared: the timeline knows once the item has
+     * been played in this session, the length kept with the positions knows once it has been played at
+     * all. 0 when neither does.
+     */
+    private long playlistLength(final int index) {
+        final Timeline timeline = player.getCurrentTimeline();
+        if (index >= 0 && index < timeline.getWindowCount()) {
+            final long duration = timeline.getWindow(index, new Timeline.Window()).getDurationMs();
+            if (duration != C.TIME_UNSET && duration > 0) {
+                return duration;
+            }
+        }
+        final Uri uri = playlistUri(index);
+        final Long length = uri == null ? null : Prefs.readLengths(this).get(uri.toString());
+        return length == null ? 0 : length;
+    }
+
+    /**
+     * Ask whether to carry on from the remembered place. The player waits on it, paused there, so the
+     * frame behind the question is where "carry on" goes. Back is "carry on" too: it is what the player
+     * would have done without asking, and a dialog dismissed into a paused film explains nothing.
+     */
+    private void askResume(final long positionMs) {
+        if (resumeDialog != null) {
+            resumeDialog.dismiss();
+        }
+        final StringBuilder timeBuilder = new StringBuilder();
+        final Formatter timeFormatter = new Formatter(timeBuilder, Locale.getDefault());
+        final AlertDialog dialog = new MaterialAlertDialogBuilder(Dialogs.dialogContext(this))
+                .setTitle(R.string.resume_ask_title)
+                .setMessage(getString(R.string.resume_ask_message,
+                        Util.getStringForTime(timeBuilder, timeFormatter, positionMs)))
+                .setPositiveButton(R.string.resume_ask_continue, (d, which) -> playPending())
+                .setNegativeButton(R.string.resume_ask_start_over, (d, which) -> {
+                    if (player != null) {
+                        player.seekTo(0);
+                    }
+                    playPending();
+                })
+                .setOnCancelListener(d -> playPending())
+                .create();
+        // On a remote the first button is the one the D-pad lands on unless told otherwise, and that is
+        // "start over" in a dialog laid out negative-first: carrying on is what one press of OK should do.
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus());
+        dialog.setOnDismissListener(d -> {
+            if (resumeDialog == dialog) {
+                resumeDialog = null;
+            }
+        });
+        resumeDialog = dialog;
+        dialog.show();
+    }
+
     private void playPending() {
         if (together != null && together.holding()) {
+            return;
+        }
+        if (resolveResume()) {
             return;
         }
         if (player != null) {
@@ -13280,6 +13405,11 @@ public class PlayerActivity extends Activity {
         if (player != null) {
             Utils.log("release player" + (save ? ", saving" : ""));
         }
+        // The question was about this player's start. Dismissed, not cancelled: cancelling answers it.
+        resumeCheck = null;
+        if (resumeDialog != null) {
+            resumeDialog.dismiss();
+        }
         cancelLoadWatchdog();
         // A pending source re-read belongs to the session being torn down here, same as errorToShow below.
         // So do both watchdogs that guard a retained session (see onStop / onStart): whatever path got
@@ -13556,7 +13686,13 @@ public class PlayerActivity extends Activity {
             if (reason == Player.DISCONTINUITY_REASON_SEEK && oldIndex != newIndex
                     && newPosition.positionMs < 1000) {
                 final long saved = savedPlaylistPosition(newIndex);
-                if (saved > 0) {
+                // Another video inside the session, decided here and not when it is ready: the jump is
+                // where the saved place is either taken or not. Its credits are not known yet, so only
+                // the 95 % mark can call it watched.
+                final ResumePolicy.Decision decision = saved <= 0 ? ResumePolicy.Decision.START_OVER
+                        : ResumePolicy.decide(mPrefs.resumeMode, ResumePolicy.Start.NEXT, saved,
+                                playlistLength(newIndex), null);
+                if (decision != ResumePolicy.Decision.START_OVER) {
                     // Exactly where it was left, and exact is also what keeps this off the trap in
                     // seekBackwards: a backwards tolerance is sticky for the life of the player, so a
                     // rewind gesture earlier in the session would still be in force here, and a saved
@@ -13564,6 +13700,10 @@ public class PlayerActivity extends Activity {
                     // clock can hold.
                     player.setSeekParameters(SeekParameters.EXACT);
                     player.seekTo(newIndex, saved);
+                }
+                if (decision == ResumePolicy.Decision.ASK) {
+                    player.pause();
+                    askResume(saved);
                 }
             }
         }
@@ -17274,6 +17414,7 @@ public class PlayerActivity extends Activity {
             releasePlayer();
             mPrefs.updateMedia(this, nextUri, null);
             searchSubtitles();
+            resumeStart = ResumePolicy.Start.NEXT;
             initializePlayer();
         }
     }

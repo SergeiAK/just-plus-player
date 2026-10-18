@@ -451,7 +451,16 @@
     <string name="pref_appearance_header_summary">Тема, чёрный AMOLED</string>
     <string name="pref_controls_header_summary">Громкость, жесты, удержание для ускорения</string>
     <string name="pref_onscreen_header_summary">Часы, время до конца, статистика</string>
-    <string name="pref_video_header_summary">Частота кадров, картинка в картинке</string>
+    <string name="pref_video_header_summary">Продолжение просмотра, частота кадров, картинка в картинке</string>
+    <string name="pref_resume_mode">Продолжение просмотра</string>
+    <string name="pref_resume_ask_open">Спрашивать при открытии</string>
+    <string name="pref_resume_ask_every">Спрашивать для каждого видео</string>
+    <string name="pref_resume_always">Всегда продолжать</string>
+    <string name="pref_resume_never">Всегда с начала</string>
+    <string name="resume_ask_title">Продолжить просмотр?</string>
+    <string name="resume_ask_message">Вы остановились на %1$s</string>
+    <string name="resume_ask_continue">Продолжить</string>
+    <string name="resume_ask_start_over">С начала</string>
     <string name="pref_audio_header_summary">Предпочитаемые языки, прямая передача</string>
     <string name="pref_subtitle_header_summary">Языки, вторая строка, поиск, вид</string>
     <string name="pref_decoding_header_summary">Приоритет декодера, туннелирование, Dolby Vision</string>

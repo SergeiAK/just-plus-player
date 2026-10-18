@@ -559,7 +559,16 @@
     <string name="pref_appearance_header_summary">Theme, AMOLED black</string>
     <string name="pref_controls_header_summary">Volume, gestures, hold to speed up</string>
     <string name="pref_onscreen_header_summary">Clock, remaining time, statistics</string>
-    <string name="pref_video_header_summary">Frame rate, picture in picture</string>
+    <string name="pref_video_header_summary">Resume, frame rate, picture in picture</string>
+    <string name="pref_resume_mode">Resume playback</string>
+    <string name="pref_resume_ask_open">Ask when opening</string>
+    <string name="pref_resume_ask_every">Ask for every video</string>
+    <string name="pref_resume_always">Always resume</string>
+    <string name="pref_resume_never">Always from the start</string>
+    <string name="resume_ask_title">Resume playback?</string>
+    <string name="resume_ask_message">You stopped at %1$s</string>
+    <string name="resume_ask_continue">Resume</string>
+    <string name="resume_ask_start_over">Start over</string>
     <string name="pref_browser_header_summary">Access to files, hidden files, .nomedia</string>
     <string name="pref_audio_header_summary">Preferred languages, passthrough</string>
     <string name="pref_subtitle_header_summary">Languages, second line, search, look</string>
