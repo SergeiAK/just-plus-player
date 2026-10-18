@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modified for Synthex (from Media3 1.11.0, androidx.media3.extractor.avi.StreamFormatChunk):
+ * Modified for Syntex (from Media3 1.11.0, androidx.media3.extractor.avi.StreamFormatChunk):
  * MPEG-1/2 audio layers I and II (WAVE_FORMAT_MPEG) are accepted.
  */
 package com.brouken.player.avi;

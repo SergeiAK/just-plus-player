@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copied unchanged into Synthex from Media3 1.11.0 (androidx.media3.extractor.avi), package only.
+ * Copied unchanged into Syntex from Media3 1.11.0 (androidx.media3.extractor.avi), package only.
  */
 package com.brouken.player.avi;
 

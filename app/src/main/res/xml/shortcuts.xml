@@ -6,7 +6,7 @@
         android:shortcutShortLabel="@string/shortcut_videos">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="com.synthex.player"
+            android:targetPackage="com.syntex.player"
             android:targetClass="com.brouken.player.BrowserActivity" />
     </shortcut>
 </shortcuts>

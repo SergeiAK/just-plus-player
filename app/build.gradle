@@ -41,7 +41,7 @@ android {
 
     defaultConfig {
         def abiFilter = project.findProperty("abiFilter")
-        applicationId "com.synthex.player"
+        applicationId "com.syntex.player"
         minSdkVersion 23
         targetSdkVersion 36
         versionCode tagVersionCode
@@ -62,7 +62,7 @@ android {
         }
     }
     base {
-        archivesName = "Synthex.v${defaultConfig.versionName}"
+        archivesName = "Syntex.v${defaultConfig.versionName}"
     }
     buildTypes {
         release {

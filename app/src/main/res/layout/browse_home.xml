@@ -55,7 +55,7 @@
             android:layout_height="32dp"
             android:layout_marginStart="12dp"
             android:importantForAccessibility="no"
-            android:src="@drawable/ic_synthex_mark" />
+            android:src="@drawable/ic_syntex_mark" />
 
         <View
             android:layout_width="0dp"

@@ -1,12 +1,12 @@
-# Synthex
+# Syntex
 
-> **Personal fork.** Synthex (until October 2026 "Just+ Fork") is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
+> **Personal fork.** Syntex (until October 2026 "Just+ Fork", then briefly "Synthex") is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
 
 ### How this fork differs from Just+
 
 Built from the Just+ 2.0.11 source, the last one published upstream: the official releases from 2.1.1 on are APK-only, and none of their changes are in this fork. What the fork changes:
 
- * **Installs next to the official app.** Package `com.synthex.player`, shown in the launcher as "Synthex" with its own icon and TV banner, with its own settings. Apps that hand the player series and episode details by package name (LAMPA among them) talk to the official app only; for them this one is a plain video player
+ * **Installs next to the official app.** Package `com.syntex.player`, shown in the launcher as "Syntex" with its own icon and TV banner, with its own settings. Apps that hand the player series and episode details by package name (LAMPA among them) talk to the official app only; for them this one is a plain video player
  * **Updates and the source link point here.** The in-app update check looks at this fork's releases, and About → Source code (and its QR code) open this repository
 
 **File browser**

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modified for Synthex (from Media3 1.11.0, androidx.media3.extractor.avi.AviExtractor): idx1
+ * Modified for Syntex (from Media3 1.11.0, androidx.media3.extractor.avi.AviExtractor): idx1
  * chunk sizes are passed to the chunk readers (they time byte-counted audio by them), byte-counted
  * audio carries its exact bitrate on its format, every audio chunk is a sync sample (each can start
  * playback; the fork reframes AVI audio itself), MPEG-4 Part 2 video is reordered to presentation
