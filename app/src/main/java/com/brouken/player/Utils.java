@@ -1394,13 +1394,46 @@ public class Utils {
         return mode.getPhysicalWidth() + "x" + mode.getPhysicalHeight() + "@" + mode.getRefreshRate();
     }
 
-    /** Whether the display offers a mode at this width that can keep up with the content. */
+    /**
+     * Whether a refresh rate shows every frame of the content the same number of times, judged on the
+     * *relative* error. A centi-Hz remainder could not match 23.976 at all, since normRate truncates it
+     * to 2397, which divides neither 4795 (47.952 Hz) nor 11988 (119.88 Hz). But the tolerance has to
+     * stay under the 1/1001 that separates an NTSC rate from its integer neighbour, or 120 Hz also
+     * "matches" 23.976 content and, being the higher rate, beats the 119.88 mode that is the exact one.
+     * 2e-4 sits between the float noise on these values (~5e-6) and that 1e-3 gap.
+     */
+    static boolean isRateMultiple(final float refreshRate, final float frameRate) {
+        final float ratio = refreshRate / frameRate;
+        final int multiple = Math.round(ratio);
+        return multiple >= 1 && Math.abs(ratio - multiple) < multiple * 0.0002f;
+    }
+
+    /**
+     * Which of three screen densities a mode height falls in: SD, 720 and everything from 1080 up. On
+     * Amlogic boxes from Android 12 a change between groups changes the density of the whole system
+     * (Dune HD Homatics: 320 dpi at 2160p, 213 at 720p), and density is not among the changes the
+     * player handles itself, so the activity is rebuilt. The rebuilt window has not asked for any mode
+     * yet, the system drops back to its default, the new activity asks for 720p again — a loop of
+     * HDMI renegotiations every three and a half seconds, measured on that box. Dune's own player keeps
+     * to the same groups (AmlogicA12_getDensityGroup, ≤576 / 720 / above).
+     */
+    static int densityGroup(final int height) {
+        return height <= 576 ? 0 : height <= 720 ? 1 : 2;
+    }
+
+    /**
+     * Whether the display offers a mode at this width that shows the content at a whole multiple of its
+     * rate without leaving the density group of the mode now running. "Fast enough" is not the test:
+     * 720p has no 24 Hz mode on most sinks, and 23.976 content at 720p60 judders where it would have
+     * played smoothly at 2160p23.976 — the frame changes to show the picture better, never worse.
+     */
     @RequiresApi(api = Build.VERSION_CODES.M)
-    private static boolean hasRateCapableMode(final Display.Mode[] modes, final int width,
-                                              final float frameRate) {
+    private static boolean hasMatchingModeAt(final Display.Mode[] modes, final int width,
+                                             final float frameRate, final int activeHeight) {
         for (Display.Mode mode : modes) {
             if (mode.getPhysicalWidth() == width
-                    && normRate(mode.getRefreshRate()) >= normRate(frameRate)) {
+                    && densityGroup(mode.getPhysicalHeight()) == densityGroup(activeHeight)
+                    && isRateMultiple(mode.getRefreshRate(), frameRate)) {
                 return true;
             }
         }
@@ -1481,17 +1514,24 @@ public class Utils {
                     // and only the refresh rate moves, which is what this did before the setting existed.
                     final int targetWidth = activity.mPrefs.displayResolutionMatching
                             ? targetDisplayWidth(activeMode.getPhysicalWidth(), videoWidth) : -1;
-                    // Three different things print as -1 otherwise, and the first question asked of this
-                    // line is always which of them happened.
-                    final String targetText = !activity.mPrefs.displayResolutionMatching ? "off"
-                            : targetWidth > 0 ? String.valueOf(targetWidth) : "none for this video";
                     // Not when the frame the video asks for cannot carry its rate: the point of the
                     // whole search is the rate, and 4K at 30 Hz for 60 fps content is a worse picture
                     // than 1080p at 60. Without this the fallback below — top rate at the target
-                    // width — would take that trade every time.
-                    final boolean switchingResolution = targetWidth > 0
-                            && targetWidth != activeMode.getPhysicalWidth()
-                            && hasRateCapableMode(supportedModes, targetWidth, frameRate);
+                    // width — would take that trade every time. Nor across a density group, which
+                    // rebuilds the activity and loops (see densityGroup).
+                    final boolean resolutionWanted = targetWidth > 0
+                            && targetWidth != activeMode.getPhysicalWidth();
+                    final boolean switchingResolution = resolutionWanted
+                            && hasMatchingModeAt(supportedModes, targetWidth, frameRate,
+                                    activeMode.getPhysicalHeight());
+                    // Four different things print as -1 otherwise, and the first question asked of this
+                    // line is always which of them happened.
+                    final String targetText = !activity.mPrefs.displayResolutionMatching ? "off"
+                            : targetWidth <= 0 ? "none for this video"
+                            : resolutionWanted && !switchingResolution
+                                    ? targetWidth + " passed over (no mode at a multiple of the rate"
+                                            + " in the same density group)"
+                            : String.valueOf(targetWidth);
                     // Refresh rate >= video FPS
                     List<Display.Mode> modesHigh = new ArrayList<>();
                     // Max refresh rate. No starting point of its own when the frame is changing: the
@@ -1525,17 +1565,7 @@ public class Utils {
                         Display.Mode modeBest = null;
 
                         for (Display.Mode mode : modesHigh) {
-                            // A whole multiple of the content rate, judged on the *relative* error. The
-                            // centi-Hz remainder this replaces could not match 23.976 at all, since
-                            // normRate truncates it to 2397, which divides neither 4795 (47.952 Hz) nor
-                            // 11988 (119.88 Hz). But the tolerance has to stay under the 1/1001 that
-                            // separates an NTSC rate from its integer neighbour, or 120 Hz also "matches"
-                            // 23.976 content and, being the higher rate, beats the 119.88 mode that is the
-                            // exact one. 2e-4 sits between the float noise on these values (~5e-6) and
-                            // that 1e-3 gap.
-                            final float ratio = mode.getRefreshRate() / frameRate;
-                            final int multiple = Math.round(ratio);
-                            if (multiple >= 1 && Math.abs(ratio - multiple) < multiple * 0.0002f) {
+                            if (isRateMultiple(mode.getRefreshRate(), frameRate)) {
                                 if (modeBest == null || normRate(mode.getRefreshRate()) > normRate(modeBest.getRefreshRate())) {
                                     modeBest = mode;
                                 }
