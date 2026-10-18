@@ -355,6 +355,14 @@
                 app:key="languageSubtitle"
                 app:title="@string/pref_language_subtitle" />
 
+            <!-- Belongs to the list above: it narrows what that list turns on when the dub is in one of
+                 its languages. See ForcedSubtitles. -->
+            <SwitchPreferenceCompat
+                app:defaultValue="false"
+                app:key="subtitleForcedOnly"
+                app:summary="@string/pref_subtitle_forced_only_summary"
+                app:title="@string/pref_subtitle_forced_only" />
+
             <!-- Everything the second line has, behind one row. It was two halves on two screens - the
                  language here, the look inside the first line's Appearance - which is one place too few to
                  find any of it. The summary names the mode, so "is there a second line at all" reads

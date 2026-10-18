@@ -379,6 +379,8 @@
     <string name="pref_subtitle_edge_shadow">Тень</string>
     <string name="pref_subtitle_none">Нет</string>
     <string name="pref_language_subtitle">Субтитры по умолчанию</string>
+    <string name="pref_subtitle_forced_only">Только форсированные</string>
+    <string name="pref_subtitle_forced_only_summary">Если озвучка на языке из списка, показывать только форсированные субтитры на нём (надписи и иностранные реплики), полные — нет</string>
     <string name="pref_subtitle_search_screen">Поиск онлайн</string>
     <string name="pref_subtitle_search_when">Когда искать</string>
     <string name="pref_subtitle_search_never">Никогда — только когда попрошу</string>

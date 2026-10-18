@@ -5927,8 +5927,9 @@ public class PlayerActivity extends Activity {
         // Matroska names reach us here rather than through Format.label, and this can land after
         // onTracksChanged — so a language that lives in a name is only now readable. A track turned on
         // by one is also the answer to whatever the search was started for, which is why that question
-        // is put again: the file has what it was going to download.
-        if (selectSubtitleByName()) {
+        // is put again: the file has what it was going to download. A forced track named "Forced" and
+        // nothing else is readable only now for the same reason.
+        if (selectForcedSubtitle() || selectSubtitleByName()) {
             cancelSubtitleSearch();
             maybeSearchSubtitlesOnline(player.getCurrentTracks());
         }
@@ -7775,6 +7776,158 @@ public class PlayerActivity extends Activity {
         return true;
     }
 
+    /**
+     * The language the first line is limited to forced tracks in, or null when "Forced subtitles only"
+     * does not apply to what is playing: the setting is off, the subtitle list is empty, the audio is
+     * not known yet, or the dub is in a language the list does not name — see {@link ForcedSubtitles}.
+     */
+    @Nullable
+    private String forcedOnlyLanguage(Tracks tracks) {
+        if (!mPrefs.subtitleForcedOnly) {
+            return null;
+        }
+        final List<String> preferred = Utils.splitLanguages(mPrefs.languageSubtitle);
+        if (preferred.isEmpty()) {
+            return null;
+        }
+        for (final Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_AUDIO) {
+                continue;
+            }
+            for (int i = 0; i < group.length; i++) {
+                if (!group.isTrackSelected(i)) {
+                    continue;
+                }
+                final Format format = group.getTrackFormat(i);
+                String language = Utils.toIso3Language(format.language);
+                if (language == null) {
+                    // An untagged dub named "RUS DUB" is as much Russian as a tagged one.
+                    language = Utils.languageInName(trackName(format), preferred);
+                }
+                return ForcedSubtitles.wantedLanguage(language, preferred);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The text override that holds on the tracks now playing, or null. Overrides are kept by track
+     * group and outlive the item they were made for — a playlist plays on in the same player — and
+     * the selector skips one whose group is gone, so only one whose group is still here says anything
+     * about this item.
+     */
+    @Nullable
+    private TrackSelectionOverride liveTextOverride(Tracks tracks) {
+        if (player == null) {
+            return null;
+        }
+        for (final TrackSelectionOverride override
+                : player.getTrackSelectionParameters().overrides.values()) {
+            if (override.getType() != C.TRACK_TYPE_TEXT) {
+                continue;
+            }
+            for (final Tracks.Group group : tracks.getGroups()) {
+                if (group.getMediaTrackGroup().equals(override.mediaTrackGroup)) {
+                    return override;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * "Forced subtitles only": with a dub in a language from the subtitle list, the first line shows a
+     * forced track in that language, and nothing when the file has none — a full track in the language
+     * already being heard is what the setting is there to keep off the screen.
+     *
+     * <p>Forced is the container's flag or the track's name ({@link ForcedSubtitles#isForced}): of the
+     * films measured 07.10.2026, 107 carry Russian forced subtitles that say so only in the name. A
+     * flagged track wins over one that is forced by name only, and file order decides the rest.
+     *
+     * <p>Like {@link #selectSubtitleByName()} it leaves alone a choice made by hand, a remembered one,
+     * a painted file and a line switched off. Unlike it, it does reach past the selector: the selector
+     * puts the full track on by language before any of this runs. Nothing has been drawn by then — the
+     * first cue comes later — so the full track is never seen.
+     *
+     * <p>Decided once per item, on the audio chosen when it opened. An empty line is written as an
+     * empty override on the track that was showing, which is how this method recognises its own
+     * answer and may revise it: Matroska names land after the first track change, and the forced track
+     * the first pass could not see is exactly what they reveal.
+     *
+     * @return whether the first line was changed
+     */
+    private boolean selectForcedSubtitle() {
+        if (player == null || paintedSubtitleUri != null || mPrefs.subtitleTrackId != null
+                || mainLineDisabled()) {
+            return false;
+        }
+        final Tracks tracks = player.getCurrentTracks();
+        final TrackSelectionOverride live = liveTextOverride(tracks);
+        if (live != null && !live.trackIndices.isEmpty()) {
+            return false;
+        }
+        final String language = forcedOnlyLanguage(tracks);
+        if (language == null) {
+            return false;
+        }
+        final List<String> wanted = Collections.singletonList(language);
+        final Format secondary = secondaryTextTrack.get();
+        TrackGroup bestGroup = null;
+        int bestIndex = 0;
+        boolean bestFlagged = false;
+        TrackGroup shown = null;
+        for (final Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_TEXT) {
+                continue;
+            }
+            for (int i = 0; i < group.length; i++) {
+                final Format format = group.getTrackFormat(i);
+                if (secondary != null && secondary.equals(format)) {
+                    continue;
+                }
+                if (group.isTrackSelected(i)) {
+                    shown = group.getMediaTrackGroup();
+                }
+                if (!group.isTrackSupported(i) || isPhantomClosedCaption(format)) {
+                    continue;
+                }
+                final String name = trackName(format);
+                String trackLanguage = Utils.toIso3Language(format.language);
+                if (trackLanguage == null) {
+                    trackLanguage = Utils.languageInName(name, wanted);
+                }
+                final boolean flagged = (format.selectionFlags & C.SELECTION_FLAG_FORCED) != 0;
+                if (!language.equals(trackLanguage) || !ForcedSubtitles.isForced(flagged, name)) {
+                    continue;
+                }
+                if (bestGroup == null || (flagged && !bestFlagged)) {
+                    bestGroup = group.getMediaTrackGroup();
+                    bestIndex = i;
+                    bestFlagged = flagged;
+                }
+            }
+        }
+        if (bestGroup != null) {
+            if (live == null && bestGroup.equals(shown)) {
+                return false; // the selector got there by itself, from the flag
+            }
+            Utils.log("subtitles: forced only, audio=" + language + ", forced track "
+                    + bestGroup.getFormat(bestIndex).id + (bestFlagged ? " (flag)" : " (name)"));
+            applySubtitle(bestGroup, bestIndex);
+            return true;
+        }
+        if (live != null || shown == null) {
+            return false; // already empty, or nothing to take off
+        }
+        Utils.log("subtitles: forced only, audio=" + language + ", no forced track, line left empty");
+        mainTrackGroup = null;
+        player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .setOverrideForType(new TrackSelectionOverride(shown, Collections.<Integer>emptyList()))
+                .build());
+        return true;
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Online subtitle search: when the media carries nothing in the language the priority list asks
     // for, fetch it rather than leave the viewer with no subtitles and no way to get any.
@@ -7922,7 +8075,14 @@ public class PlayerActivity extends Activity {
         // ever serve one line: SubtitleSearch.find stops at the first file it can actually download, so
         // a longer list of languages does not come back with a longer list of files. Two wants
         // therefore mean two passes, below.
-        List<String> missing = forSecondary
+        // Forced-only with a dub the viewer understands wants a forced track or nothing, and the sources
+        // skip forced files (SubtitleFetcher) — so all an automatic search could bring the first line is
+        // the full track the setting keeps off it. Asked for by hand it still runs.
+        final boolean forcedOnly = !manual && forcedOnlyLanguage(tracks) != null;
+        if (forcedOnly) {
+            Utils.log("subtitles: forced only, first line not searched");
+        }
+        List<String> missing = forSecondary || forcedOnly
                 ? Collections.<String>emptyList() : subtitleLanguagesToSearch(tracks, preferred);
         List<String> secondary;
         if (forSecondary) {
@@ -9932,6 +10092,14 @@ public class PlayerActivity extends Activity {
      */
     private void rememberMainLineTrack() {
         if (player == null) {
+            return;
+        }
+        // Left empty on purpose by selectForcedSubtitle. The track list still shows the full track it
+        // took off — the change has not landed yet — and remembering that track is how the second
+        // line's pin would put it straight back.
+        final TrackSelectionOverride live = liveTextOverride(player.getCurrentTracks());
+        if (live != null && live.trackIndices.isEmpty()) {
+            mainTrackGroup = null;
             return;
         }
         final Format secondary = secondaryTextTrack.get();
@@ -13557,6 +13725,9 @@ public class PlayerActivity extends Activity {
                 playerView.post(PlayerActivity.this::updateSubtitleButton);
             }
             updateSubtitleTimeline(tracks);
+            // First of the automatic choices: with forced-only on and a dub the viewer understands,
+            // whatever the selector put on the line by language is exactly what has to come off it.
+            selectForcedSubtitle();
             // Before the search: a track whose name gives its language away answers what the search
             // would otherwise go looking for.
             selectSubtitleByName();

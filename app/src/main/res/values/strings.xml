@@ -465,6 +465,8 @@
     <string name="pref_subtitle_edge_shadow">Drop shadow</string>
     <string name="pref_subtitle_none">None</string>
     <string name="pref_language_subtitle">Default subtitle track</string>
+    <string name="pref_subtitle_forced_only">Forced subtitles only</string>
+    <string name="pref_subtitle_forced_only_summary">When the audio is in one of these languages, show only forced subtitles in it (signs and foreign lines), never full ones</string>
     <string name="pref_language_subtitle_none">Not set — subtitles stay off until you turn them on</string>
     <string name="pref_language_subtitle_secondary">Secondary subtitle track</string>
     <string name="pref_language_subtitle_secondary_none">Not set — secondary subtitles are only ever chosen during playback</string>

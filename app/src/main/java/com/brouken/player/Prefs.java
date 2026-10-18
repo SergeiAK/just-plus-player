@@ -104,6 +104,7 @@ class Prefs {
     private static final String PREF_KEY_SUBTITLE_SEARCH = "subtitleSearch";
     private static final String PREF_KEY_SUBTITLE_SEARCH_STRICT = "subtitleSearchStrict";
     private static final String PREF_KEY_SUBTITLE_SEARCH_LANGUAGE = "subtitleSearchLanguage";
+    private static final String PREF_KEY_SUBTITLE_FORCED_ONLY = "subtitleForcedOnly";
     private static final String PREF_KEY_SUBTITLE_TRANSLATE_ON = "subtitleTranslateOn";
     private static final String PREF_KEY_SUBTITLE_TRANSLATE_BACKENDS = "subtitleTranslateBackends";
     // Both shapes the setting had before the switch above; each is read once by getSubtitleTranslate
@@ -315,6 +316,10 @@ class Prefs {
     // the first is the language being learned, the second the one already known. Empty — the default —
     // means no second line unless one is picked by hand.
     public String languageSubtitleSecondary = "";
+    // With a dub in a language from the subtitle list, show only a forced track in that language - the
+    // signs and the foreign lines - and no full track. Off by default: it is the upstream behaviour
+    // that full subtitles in a listed language come on. See ForcedSubtitles.
+    public boolean subtitleForcedOnly = false;
     // Look for a missing subtitle language online. Off by default: it sends what is being watched,
     // by id, to third-party services, which is not something to start doing on a user's behalf.
     public boolean subtitleSearch = false;
@@ -512,6 +517,7 @@ class Prefs {
         languageAudio = getLanguageAudio(mContext);
         languageSubtitle = getLanguageSubtitle(mContext);
         languageSubtitleSecondary = getLanguageSubtitleSecondary(mContext);
+        subtitleForcedOnly = mSharedPreferences.getBoolean(PREF_KEY_SUBTITLE_FORCED_ONLY, subtitleForcedOnly);
         final String searchMode = getSubtitleSearchMode(mContext);
         subtitleSearch = !SEARCH_OFF.equals(searchMode);
         subtitleSearchStrict = SEARCH_NONE.equals(searchMode);

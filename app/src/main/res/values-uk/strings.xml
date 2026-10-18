@@ -379,6 +379,8 @@
     <string name="pref_subtitle_edge_shadow">Тінь</string>
     <string name="pref_subtitle_none">Немає</string>
     <string name="pref_language_subtitle">Субтитри за замовчуванням</string>
+    <string name="pref_subtitle_forced_only">Лише форсовані</string>
+    <string name="pref_subtitle_forced_only_summary">Якщо озвучення мовою зі списку, показувати лише форсовані субтитри нею (написи та іншомовні репліки), повні — ні</string>
     <string name="pref_subtitle_search_screen">Пошук онлайн</string>
     <string name="pref_subtitle_search_when">Коли шукати</string>
     <string name="pref_subtitle_search_never">Ніколи — лише коли попрошу</string>
