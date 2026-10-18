@@ -151,13 +151,13 @@
     <string name="pref_amoled_summary">Use a pure black background in the dark theme</string>
     <string name="pref_framerate_matching">Match the refresh rate to the video</string>
     <string name="pref_framerate_matching_on">A matching mode is asked for as the file opens</string>
-    <string name="pref_framerate_matching_off">The screen keeps whatever mode it is set to now; films at 24 fps judder slightly at 60 Hz</string>
+    <string name="pref_framerate_matching_off">The screen keeps its current mode; 24 fps films judder slightly at 60 Hz</string>
     <string name="pref_screen_orientation">Screen orientation</string>
     <string name="pref_back_buffer">Keep played media for stepping back</string>
     <string name="pref_back_buffer_off">Off</string>
     <string name="pref_back_buffer_summary">%s. Kept in memory for a short rewind, about 10 MB per five seconds. Not for local files</string>
     <string name="pref_resolution_matching">Match the resolution to the video</string>
-    <string name="pref_resolution_matching_on">The resolution follows the video too, and the TV does the scaling. Only within SD, 720p, or 1080p and up</string>
+    <string name="pref_resolution_matching_on">The resolution follows too, the TV scales; only within SD, 720p, or 1080p+</string>
     <string name="pref_resolution_matching_off">Only the refresh rate follows the video; the box scales the picture</string>
     <string name="pref_mode_switch_pause">Pause after a display mode change, s</string>
     <string name="pref_mode_switch_pause_summary">%s s. A TV blanks picture and sound for a few seconds after a mode change; playback waits so that the start is not lost. Raise it if the first seconds go missing</string>
