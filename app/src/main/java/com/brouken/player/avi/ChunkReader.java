@@ -20,7 +20,9 @@
  *   and stamped everything after the seek one chunk early);
  * - a stream with a sample size (byte-counted audio: AC3, DTS, MP3 CBR, PCM in the old muxers) is
  *   timed by the bytes before each chunk, from the sizes in idx1, instead of spreading the duration
- *   evenly over the chunks (which drifts by up to a chunk, and for DTS divided by the length in bytes).
+ *   evenly over the chunks (which drifts by up to a chunk, and for DTS divided by the length in bytes);
+ * - MPEG-4 Part 2 video goes through Mpeg4VopReorderer: packed B-frames are unpacked and every frame
+ *   is stamped with the slot it is shown in rather than the one it is decoded in.
  */
 package com.brouken.player.avi;
 
@@ -31,11 +33,14 @@ import static java.lang.annotation.ElementType.TYPE_USE;
 
 import androidx.annotation.IntDef;
 import androidx.media3.common.C;
+import androidx.annotation.Nullable;
+import androidx.media3.common.util.ParsableByteArray;
 import androidx.media3.common.util.Util;
 import androidx.media3.extractor.ExtractorInput;
 import androidx.media3.extractor.SeekMap;
 import androidx.media3.extractor.SeekPoint;
 import androidx.media3.extractor.TrackOutput;
+import java.io.EOFException;
 import java.io.IOException;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -104,11 +109,18 @@ import java.util.Arrays;
 
   private long indexByteCount;
 
+  /** Set for MPEG-4 Part 2 video: chunks are read whole and handed to it. */
+  @Nullable private final Mpeg4VopReorderer vopReorderer;
+
+  /** The current chunk, read whole for {@link #vopReorderer}. */
+  private byte[] chunkData = new byte[0];
+
   public ChunkReader(
       int id,
       AviStreamHeaderChunk streamHeaderChunk,
       TrackOutput trackOutput,
-      boolean allSamplesAreSyncSamples) {
+      boolean allSamplesAreSyncSamples,
+      boolean reorderMpeg4Video) {
     this.streamHeaderChunk = streamHeaderChunk;
     this.allSamplesAreSyncSamples = allSamplesAreSyncSamples;
     @C.TrackType int trackType = streamHeaderChunk.getTrackType();
@@ -131,6 +143,28 @@ import java.util.Arrays;
     chunkOffsets = new long[INITIAL_INDEX_SIZE];
     chunkByteStarts = new long[timedByBytes ? INITIAL_INDEX_SIZE : 0];
     chunkCount = streamHeaderChunk.length;
+    vopReorderer =
+        reorderMpeg4Video && trackType == TRACK_TYPE_VIDEO
+            ? new Mpeg4VopReorderer(this::writeReorderedSample)
+            : null;
+  }
+
+  private void writeReorderedSample(
+      byte[] data, int size, long presentationSlot, boolean keyFrame) {
+    trackOutput.sampleData(new ParsableByteArray(data, size), size);
+    trackOutput.sampleMetadata(
+        getChunkTimestampUs((int) presentationSlot),
+        keyFrame ? C.BUFFER_FLAG_KEY_FRAME : 0,
+        size,
+        0,
+        null);
+  }
+
+  /** The stream has been read to its end: frames held for reordering are written out. */
+  public void onEndOfInput() {
+    if (vopReorderer != null) {
+      vopReorderer.flush();
+    }
   }
 
   public void appendIndexChunk(long offset, int size, boolean isKeyFrame) {
@@ -211,6 +245,9 @@ import java.util.Arrays;
   public void onChunkStart(int size) {
     currentChunkSize = size;
     bytesRemainingInCurrentChunk = size;
+    if (vopReorderer != null && chunkData.length < size) {
+      chunkData = new byte[size];
+    }
   }
 
   /**
@@ -218,6 +255,25 @@ import java.util.Arrays;
    * parsed.
    */
   public boolean onChunkData(ExtractorInput input) throws IOException {
+    if (vopReorderer != null) {
+      int read =
+          input.read(
+              chunkData, currentChunkSize - bytesRemainingInCurrentChunk,
+              bytesRemainingInCurrentChunk);
+      if (read == C.RESULT_END_OF_INPUT) {
+        throw new EOFException();
+      }
+      bytesRemainingInCurrentChunk -= read;
+      boolean done = bytesRemainingInCurrentChunk == 0;
+      if (done) {
+        if (currentChunkSize > 0) {
+          vopReorderer.onChunk(
+              chunkData, currentChunkSize, currentChunkIndex, isCurrentFrameAKeyFrame());
+        }
+        advanceCurrentChunk();
+      }
+      return done;
+    }
     bytesRemainingInCurrentChunk -=
         trackOutput.sampleData(input, bytesRemainingInCurrentChunk, false);
     boolean done = bytesRemainingInCurrentChunk == 0;
@@ -240,6 +296,9 @@ import java.util.Arrays;
    * the extractor will read from there.
    */
   public void seekToPosition(long position) {
+    if (vopReorderer != null) {
+      vopReorderer.reset();
+    }
     if (indexChunkCount == 0) {
       currentChunkIndex = 0;
       currentChunkByteStart = 0;

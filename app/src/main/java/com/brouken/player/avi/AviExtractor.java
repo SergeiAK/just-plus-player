@@ -16,7 +16,8 @@
  * Modified for Just+ Fork (from Media3 1.11.0, androidx.media3.extractor.avi.AviExtractor): idx1
  * chunk sizes are passed to the chunk readers (they time byte-counted audio by them), byte-counted
  * audio carries its exact bitrate on its format, every audio chunk is a sync sample (each can start
- * playback; the fork reframes AVI audio itself), and the Media3-internal annotations are dropped.
+ * playback; the fork reframes AVI audio itself), MPEG-4 Part 2 video is reordered to presentation
+ * times (see Mpeg4VopReorderer), and the Media3-internal annotations are dropped.
  */
 package com.brouken.player.avi;
 
@@ -460,6 +461,9 @@ public final class AviExtractor implements Extractor {
 
   private int readMoviChunks(ExtractorInput input) throws IOException {
     if (input.getPosition() >= moviEnd) {
+      for (ChunkReader chunkReader : chunkReaders) {
+        chunkReader.onEndOfInput();
+      }
       return C.RESULT_END_OF_INPUT;
     } else if (currentChunkReader != null) {
       if (currentChunkReader.onChunkData(input)) {
@@ -548,7 +552,8 @@ public final class AviExtractor implements Extractor {
           // Audio: every chunk can start playback. Media3 asks the codec, which leaves DTS out and
           // with it the index of every chunk the fork's reframer can resume from.
           trackType == C.TRACK_TYPE_AUDIO
-              || MimeTypes.allSamplesAreSyncSamples(format.sampleMimeType, format.codecs));
+              || MimeTypes.allSamplesAreSyncSamples(format.sampleMimeType, format.codecs),
+          MimeTypes.VIDEO_MP4V.equals(format.sampleMimeType));
     } else {
       // We don't currently support tracks other than video and audio.
       return null;

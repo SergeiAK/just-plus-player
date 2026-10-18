@@ -101,6 +101,56 @@ public class AviAudioReframerTest {
     }
 
     /**
+     * MPEG-4 with two B-frames between anchors (ffmpeg -c:v mpeg4 -bf 2), against FFmpeg's own genpts
+     * (bf2.framecrc: ffmpeg -fflags +genpts -i bf2.avi -map 0:v -c copy -f framecrc). FFmpeg shows
+     * everything one frame late; the fork does not, so every frame must sit exactly one slot earlier.
+     * Media3 alone, for contrast, stamps the decode order.
+     */
+    @Test
+    public void mpeg4BFramesInPresentationOrder() throws Exception {
+        final File file = testFile("bf2.avi");
+        final File reference = testFile("bf2.framecrc");
+        final List<Long> expected = new ArrayList<>();
+        for (String line : java.nio.file.Files.readAllLines(reference.toPath())) {
+            if (line.startsWith("#") || line.trim().isEmpty()) continue;
+            expected.add(Long.parseLong(line.split(",")[2].trim()) - 1);
+        }
+        final Track video = extract(file, true, -1).video();
+        final Track media3 = extract(file, false, -1).video();
+        assertEquals("frames", expected.size(), video.timesUs.size());
+        final long frameUs = 40_000;
+        int media3Backwards = 0;
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals("frame " + i, expected.get(i) * frameUs, (long) video.timesUs.get(i));
+            if (i > 0 && media3.timesUs.get(i) < media3.timesUs.get(i - 1)) media3Backwards++;
+        }
+        final List<Long> sorted = new ArrayList<>(video.timesUs);
+        java.util.Collections.sort(sorted);
+        for (int i = 0; i < sorted.size(); i++) {
+            assertEquals("shown once each, one frame apart", i * frameUs, (long) sorted.get(i));
+        }
+        System.out.println("bf2.avi: " + expected.size() + " frames, all at FFmpeg genpts - 1 frame; "
+                + "Media3 alone goes backwards " + media3Backwards + " times (it never does: decode order)");
+
+        // From a seek on, the frames carry the same times as in the full read.
+        final Track sought = extract(file, true, 10_000_000).video();
+        final int first = indexOf(video, sought.samples.get(0));
+        assertTrue("first frame after seek found", first > 0);
+        for (int i = 0; i < sought.samples.size(); i++) {
+            assertEquals("after seek, frame " + i, video.timesUs.get(first + i), sought.timesUs.get(i));
+        }
+        System.out.println("bf2.avi: after seek to 10 s, " + sought.samples.size()
+                + " frames match the full read from frame " + first);
+    }
+
+    private static int indexOf(Track track, byte[] sample) {
+        for (int i = 0; i < track.samples.size(); i++) {
+            if (Arrays.equals(track.samples.get(i), sample)) return i;
+        }
+        return -1;
+    }
+
+    /**
      * Not the layer: Media3's own AviExtractor, alone. After a seek the first audio chunk read is
      * stamped with the time of the chunk before it (ChunkReader.seekToPosition takes the last audio
      * chunk at or before the seek position, which is a video chunk, and the audio chunk before that is
