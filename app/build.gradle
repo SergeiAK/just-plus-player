@@ -41,7 +41,7 @@ android {
 
     defaultConfig {
         def abiFilter = project.findProperty("abiFilter")
-        applicationId "com.justplus.player.fork"
+        applicationId "com.synthex.player"
         minSdkVersion 23
         targetSdkVersion 36
         versionCode tagVersionCode
@@ -62,7 +62,7 @@ android {
         }
     }
     base {
-        archivesName = "JustPlus.Player.v${defaultConfig.versionName}"
+        archivesName = "Synthex.v${defaultConfig.versionName}"
     }
     buildTypes {
         release {

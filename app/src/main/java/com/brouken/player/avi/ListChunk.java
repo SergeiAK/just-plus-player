@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modified for Just+ Fork (from Media3 1.11.0, androidx.media3.extractor.avi.ListChunk): the next
+ * Modified for Synthex (from Media3 1.11.0, androidx.media3.extractor.avi.ListChunk): the next
  * chunk starts after the pad byte of an odd-sized one, as RIFF requires.
  */
 package com.brouken.player.avi;

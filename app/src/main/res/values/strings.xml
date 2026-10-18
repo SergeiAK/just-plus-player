@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Just+ Fork</string>
+    <string name="app_name" translatable="false">Synthex</string>
     <string name="video_resize_fit">Fit</string>
     <string name="video_resize_crop">Crop</string>
     <string name="video_resize_fill">Fill</string>
@@ -567,7 +567,7 @@
 
     <string name="pref_about_project">Project</string>
     <string name="pref_about_developer">Developer</string>
-    <string name="about_developer_fork">@levende, with changes by SergeiAK</string>
+    <string name="about_developer_fork">Just+ Player by @levende, with changes by SergeiAK</string>
     <string name="pref_about_source">Source code</string>
 
     <string name="about_developer" translatable="false">@levende</string>

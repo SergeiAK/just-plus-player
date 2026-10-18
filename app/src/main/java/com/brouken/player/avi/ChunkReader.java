@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modified for Just+ Fork (from Media3 1.11.0, androidx.media3.extractor.avi.ChunkReader):
+ * Modified for Synthex (from Media3 1.11.0, androidx.media3.extractor.avi.ChunkReader):
  * - every chunk of the stream is indexed with its offset, not only key frames, so a seek resumes at
  *   the index of the first chunk actually read after the seek position (Media3 took the last key
  *   chunk at or before it — for audio, the chunk before the video key frame, which is never read —

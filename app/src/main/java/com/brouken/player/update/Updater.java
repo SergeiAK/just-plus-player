@@ -233,7 +233,7 @@ public final class Updater {
                 .url(url)
                 .header("Accept", "application/vnd.github+json")
                 // GitHub's API rejects requests without a User-Agent.
-                .header("User-Agent", "JustPlusPlayer/" + BuildConfig.VERSION_NAME)
+                .header("User-Agent", "Synthex/" + BuildConfig.VERSION_NAME)
                 .build();
         try (Response response = CLIENT.newCall(request).execute()) {
             if (!response.isSuccessful()) {
