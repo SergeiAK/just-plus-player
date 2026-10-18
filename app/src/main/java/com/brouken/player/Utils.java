@@ -2186,34 +2186,77 @@ public class Utils {
                     break;
                 }
             }
-            Collections.sort(timestamps);
-            long totalFrameDuration = 0;
-            for (int i = 1; i < (timestamps.size() - ignoreSamples); i++) {
-                totalFrameDuration += (timestamps.get(i) - timestamps.get(i - 1));
-            }
-            if (timestamps.size() > 1) {
-                float averageFrameDuration = (float) totalFrameDuration / (timestamps.size() - ignoreSamples - 1);
-                frameRate = 1_000_000f / averageFrameDuration;
-                if (frameRate > 23.95f && frameRate < 23.988f) {
-                    frameRate = 24000f / 1001f;
-                } else if (frameRate > 23.988 && frameRate < 24.1) {
-                    frameRate = 24f;
-                } else if (frameRate > 24.9 && frameRate < 25.1) {
-                    frameRate = 25f;
-                } else if (frameRate > 29.95f && frameRate < 29.985) {
-                    frameRate = 30000f / 1001f;
-                } else if (frameRate > 29.985 && frameRate < 30.1) {
-                    frameRate = 30f;
-                } else if (frameRate > 49.9f && frameRate < 50.1) {
-                    frameRate = 50f;
-                } else if (frameRate > 59.9f && frameRate < 59.97) {
-                    frameRate = 60000f / 1001f;
-                }
-            }
+            frameRate = frameRateFromSampleTimes(timestamps, ignoreSamples);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
             mediaExtractor.release();
+        }
+        return frameRate;
+    }
+
+    /**
+     * The frame rate a run of sample times (µs, in any order) shows, snapped to the standard rate it is
+     * closest to, or Format.NO_VALUE when there are too few to tell. The step that occurs most often,
+     * not the average: a broadcast recording drops a field here and there (1080i TS from the library,
+     * 6–7 steps of 40 ms among ~370 of 20 ms in the first seconds), and the average of that is 49.3 —
+     * outside every window below, which sent 25i to 60 Hz. The steps within 1% of the commonest one are
+     * then averaged, so that 23.976 still comes out as such from steps that round to 41708 and 41709 µs.
+     *
+     * @param ignoreTail how many of the latest times to leave out: with B-frames the last few read are
+     *                   not yet followed by the ones that come between them in presentation order
+     */
+    static float frameRateFromSampleTimes(final List<Long> sampleTimesUs, final int ignoreTail) {
+        final List<Long> times = new ArrayList<>(sampleTimesUs);
+        Collections.sort(times);
+        final int count = times.size() - ignoreTail > 2 ? times.size() - ignoreTail : times.size();
+        final List<Long> steps = new ArrayList<>();
+        for (int i = 1; i < count; i++) {
+            final long step = times.get(i) - times.get(i - 1);
+            if (step > 0) {
+                steps.add(step);
+            }
+        }
+        if (steps.isEmpty()) {
+            return Format.NO_VALUE;
+        }
+        long commonest = 0;
+        int commonestCount = 0;
+        for (final long step : steps) {
+            int near = 0;
+            for (final long other : steps) {
+                if (Math.abs(other - step) <= step / 100) {
+                    near++;
+                }
+            }
+            if (near > commonestCount) {
+                commonest = step;
+                commonestCount = near;
+            }
+        }
+        long total = 0;
+        int counted = 0;
+        for (final long step : steps) {
+            if (Math.abs(step - commonest) <= commonest / 100) {
+                total += step;
+                counted++;
+            }
+        }
+        float frameRate = 1_000_000f * counted / total;
+        if (frameRate > 23.95f && frameRate < 23.988f) {
+            frameRate = 24000f / 1001f;
+        } else if (frameRate > 23.988 && frameRate < 24.1) {
+            frameRate = 24f;
+        } else if (frameRate > 24.9 && frameRate < 25.1) {
+            frameRate = 25f;
+        } else if (frameRate > 29.95f && frameRate < 29.985) {
+            frameRate = 30000f / 1001f;
+        } else if (frameRate > 29.985 && frameRate < 30.1) {
+            frameRate = 30f;
+        } else if (frameRate > 49.9f && frameRate < 50.1) {
+            frameRate = 50f;
+        } else if (frameRate > 59.9f && frameRate < 59.97) {
+            frameRate = 60000f / 1001f;
         }
         return frameRate;
     }
