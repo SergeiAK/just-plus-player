@@ -232,6 +232,19 @@
     <item>30000</item>
   </string-array>
 
+  <string-array name="rate_multiple_entries">
+    <item>@string/pref_rate_multiple_exact</item>
+    <item>@string/pref_rate_multiple_double</item>
+    <item>@string/pref_rate_multiple_highest</item>
+  </string-array>
+
+  <!-- Prefs.RATE_MULTIPLE_*: compared as strings, so never translated. -->
+  <string-array name="rate_multiple_values" translatable="false">
+    <item>exact</item>
+    <item>double</item>
+    <item>highest</item>
+  </string-array>
+
   <!-- The reference's own scale and labels (2.4.4), so the stored value means the same thing in both:
        seconds, with the unit in the title. -->
   <string-array name="mode_switch_pause_entries" translatable="false">

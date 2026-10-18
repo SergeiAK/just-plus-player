@@ -1409,6 +1409,118 @@ public class Utils {
     }
 
     /**
+     * Whether a mode is one that "no 24p" leaves out: 23.976 and 24 Hz and their doubles. 120 Hz is not
+     * among them — it is as much a 30 and a 60 rate as a 24 one, and a set that has it is not the kind
+     * that flickers at 24.
+     */
+    static boolean is24pRate(final float refreshRate) {
+        return refreshRate < 49f
+                && (isRateMultiple(refreshRate, 24000f / 1001f) || isRateMultiple(refreshRate, 24f));
+    }
+
+    /** Whether a rate runs on the 1000/1001 clock (23.976, 29.97, 59.94) rather than a whole one. */
+    static boolean isNtscRate(final float rate) {
+        final float whole = rate * 1.001f;
+        return Math.abs(whole - Math.round(whole)) < 0.01f && Math.abs(rate - Math.round(rate)) > 0.01f;
+    }
+
+    /**
+     * Whether the rate shows the content as 3:2, every other frame held once more — 23.976 at 59.94, 24
+     * at 60. Not as even as a whole multiple, but on the content's own clock: 23.976 at 60.000 adds a
+     * repeated frame every 17 s on top of the 3:2, and that one shows as a hitch.
+     */
+    static boolean isRatePulldown(final float refreshRate, final float frameRate) {
+        return refreshRate > frameRate && isRateMultiple(refreshRate, frameRate / 2f);
+    }
+
+    /** Whether one whole multiple is a better pick than another under the viewer's choice. */
+    private static boolean prefersMultiple(final String choice, final int times, final int than) {
+        if (Prefs.RATE_MULTIPLE_EXACT.equals(choice)) {
+            return times < than;
+        }
+        if (Prefs.RATE_MULTIPLE_DOUBLE.equals(choice)) {
+            // Two times first, then the rest from the smallest: 24 fps on a set without 48 Hz is better
+            // at 24 than at 120, which is the reason this was asked for and not the highest.
+            return (times == 2 ? 0 : times) < (than == 2 ? 0 : than);
+        }
+        return times > than;
+    }
+
+    /**
+     * The refresh rate to show content of this frame rate at, out of those one resolution offers: its
+     * index, or -1 when every rate is left out. In order —
+     * 1. a whole multiple, the one the viewer's choice puts first (as the video, doubled, the highest);
+     * 2. 3:2 on the content's own clock, the smallest such rate unless the highest was asked for — what a
+     *    set without 24p modes, or with them left out, does best;
+     * 3. the highest rate on the content's clock (1000/1001 or whole), then the highest of all, which is
+     *    the one rule there was before any of this.
+     * The rates are passed bare so that the rule can be tested off a device: Display.Mode is a stub there.
+     */
+    static int chooseRefreshRate(final float[] rates, final float frameRate, final String multiple,
+                                 final boolean skip24p) {
+        int best = -1;
+        int bestTimes = 0;
+        for (int i = 0; i < rates.length; i++) {
+            if ((skip24p && is24pRate(rates[i])) || !isRateMultiple(rates[i], frameRate)) {
+                continue;
+            }
+            final int times = Math.round(rates[i] / frameRate);
+            if (best < 0 || prefersMultiple(multiple, times, bestTimes)) {
+                best = i;
+                bestTimes = times;
+            }
+        }
+        if (best >= 0) {
+            return best;
+        }
+
+        final boolean highest = Prefs.RATE_MULTIPLE_HIGHEST.equals(multiple);
+        for (int i = 0; i < rates.length; i++) {
+            if ((skip24p && is24pRate(rates[i])) || !isRatePulldown(rates[i], frameRate)) {
+                continue;
+            }
+            if (best < 0 || (highest ? rates[i] > rates[best] : rates[i] < rates[best])) {
+                best = i;
+            }
+        }
+        if (best >= 0) {
+            return best;
+        }
+
+        final boolean ntsc = isNtscRate(frameRate);
+        int top = -1;
+        for (int i = 0; i < rates.length; i++) {
+            if (skip24p && is24pRate(rates[i])) {
+                continue;
+            }
+            if (isNtscRate(rates[i]) == ntsc && (best < 0 || rates[i] > rates[best])) {
+                best = i;
+            }
+            if (top < 0 || rates[i] > rates[top]) {
+                top = i;
+            }
+        }
+        return best >= 0 ? best : top;
+    }
+
+    /** How well these rates can show the content: 1 a whole multiple, 2 at best 3:2, 3 neither. */
+    static int cadenceTier(final float[] rates, final float frameRate, final boolean skip24p) {
+        int tier = 3;
+        for (final float rate : rates) {
+            if (skip24p && is24pRate(rate)) {
+                continue;
+            }
+            if (isRateMultiple(rate, frameRate)) {
+                return 1;
+            }
+            if (isRatePulldown(rate, frameRate)) {
+                tier = 2;
+            }
+        }
+        return tier;
+    }
+
+    /**
      * Which of three screen densities a mode height falls in: SD, 720 and everything from 1080 up. On
      * Amlogic boxes from Android 12 a change between groups changes the density of the whole system
      * (Dune HD Homatics: 320 dpi at 2160p, 213 at 720p), and density is not among the changes the
@@ -1422,22 +1534,39 @@ public class Utils {
     }
 
     /**
-     * Whether the display offers a mode at this width that shows the content at a whole multiple of its
-     * rate without leaving the density group of the mode now running. "Fast enough" is not the test:
-     * 720p has no 24 Hz mode on most sinks, and 23.976 content at 720p60 judders where it would have
-     * played smoothly at 2160p23.976 — the frame changes to show the picture better, never worse.
+     * Whether the display offers a mode at this width that shows the content at least as well as the
+     * resolution now running can — a whole multiple, or 3:2 on its own clock where nothing does better —
+     * without leaving the density group of the mode now running. "Fast enough" is not the test: 720p
+     * has no 24 Hz mode on most sinks, and 23.976 content at 720p60 judders where it would have played
+     * smoothly at 2160p23.976 — the frame changes to show the picture better, never worse. With 24p
+     * left out, 720p59.94 and 2160p59.94 are the same 3:2, and the frame follows the video again.
      */
     @RequiresApi(api = Build.VERSION_CODES.M)
     private static boolean hasMatchingModeAt(final Display.Mode[] modes, final int width,
-                                             final float frameRate, final int activeHeight) {
+                                             final float frameRate, final Display.Mode active,
+                                             final boolean skip24p) {
+        final List<Float> there = new ArrayList<>();
+        final List<Float> here = new ArrayList<>();
         for (Display.Mode mode : modes) {
             if (mode.getPhysicalWidth() == width
-                    && densityGroup(mode.getPhysicalHeight()) == densityGroup(activeHeight)
-                    && isRateMultiple(mode.getRefreshRate(), frameRate)) {
-                return true;
+                    && densityGroup(mode.getPhysicalHeight()) == densityGroup(active.getPhysicalHeight())) {
+                there.add(mode.getRefreshRate());
+            }
+            if (mode.getPhysicalWidth() == active.getPhysicalWidth()
+                    && mode.getPhysicalHeight() == active.getPhysicalHeight()) {
+                here.add(mode.getRefreshRate());
             }
         }
-        return false;
+        final int tier = cadenceTier(bare(there), frameRate, skip24p);
+        return tier < 3 && tier <= cadenceTier(bare(here), frameRate, skip24p);
+    }
+
+    private static float[] bare(final List<Float> rates) {
+        final float[] out = new float[rates.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = rates.get(i);
+        }
+        return out;
     }
 
     /**
@@ -1513,25 +1642,22 @@ public class Utils {
                     // than 1080p at 60. Without this the fallback below — top rate at the target
                     // width — would take that trade every time. Nor across a density group, which
                     // rebuilds the activity and loops (see densityGroup).
+                    final String multiple = activity.mPrefs.refreshRateMultiple;
+                    final boolean skip24p = activity.mPrefs.skip24p;
                     final boolean resolutionWanted = targetWidth > 0
                             && targetWidth != activeMode.getPhysicalWidth();
                     final boolean switchingResolution = resolutionWanted
-                            && hasMatchingModeAt(supportedModes, targetWidth, frameRate,
-                                    activeMode.getPhysicalHeight());
+                            && hasMatchingModeAt(supportedModes, targetWidth, frameRate, activeMode,
+                                    skip24p);
                     // Four different things print as -1 otherwise, and the first question asked of this
                     // line is always which of them happened.
                     final String targetText = !activity.mPrefs.displayResolutionMatching ? "off"
                             : targetWidth <= 0 ? "none for this video"
                             : resolutionWanted && !switchingResolution
-                                    ? targetWidth + " passed over (no mode at a multiple of the rate"
-                                            + " in the same density group)"
+                                    ? targetWidth + " passed over (no mode in the same density group"
+                                            + " shows the rate as well as this one)"
                             : String.valueOf(targetWidth);
-                    // Refresh rate >= video FPS
-                    List<Display.Mode> modesHigh = new ArrayList<>();
-                    // Max refresh rate. No starting point of its own when the frame is changing: the
-                    // current mode is not a candidate then, since it is the resolution being left.
-                    Display.Mode modeTop = switchingResolution ? null : activeMode;
-                    int modesResolutionCount = 0;
+                    List<Display.Mode> candidates = new ArrayList<>();
 
                     // Modes at the resolution being aimed at — the current one unless the frame is
                     // changing. Width alone when it is changing, height as well when it is not: that is
@@ -1542,40 +1668,30 @@ public class Utils {
                                 : mode.getPhysicalWidth() == activeMode.getPhysicalWidth()
                                         && mode.getPhysicalHeight() == activeMode.getPhysicalHeight();
                         if (candidate) {
-                            modesResolutionCount++;
-
-                            if (normRate(mode.getRefreshRate()) >= normRate(frameRate))
-                                modesHigh.add(mode);
-
-                            if (modeTop == null
-                                    || normRate(mode.getRefreshRate()) > normRate(modeTop.getRefreshRate()))
-                                modeTop = mode;
+                            candidates.add(mode);
                         }
                     }
+                    final int modesResolutionCount = candidates.size();
+                    final float[] rates = new float[modesResolutionCount];
+                    for (int i = 0; i < rates.length; i++) {
+                        rates[i] = candidates.get(i).getRefreshRate();
+                    }
+                    final int chosen = chooseRefreshRate(rates, frameRate, multiple, skip24p);
+                    final String ruleText = ", multiple " + multiple + (skip24p ? ", 24p left out" : "");
 
                     // One mode is enough to be worth taking when it is at another resolution; at the
                     // current one it can only be the mode already running.
-                    if (switchingResolution ? modesResolutionCount > 0 : modesResolutionCount > 1) {
-                        Display.Mode modeBest = null;
-
-                        for (Display.Mode mode : modesHigh) {
-                            if (isRateMultiple(mode.getRefreshRate(), frameRate)) {
-                                if (modeBest == null || normRate(mode.getRefreshRate()) > normRate(modeBest.getRefreshRate())) {
-                                    modeBest = mode;
-                                }
-                            }
-                        }
+                    if (chosen >= 0
+                            && (switchingResolution ? modesResolutionCount > 0 : modesResolutionCount > 1)) {
+                        final Display.Mode modeBest = candidates.get(chosen);
 
                         Window window = activity.getWindow();
                         WindowManager.LayoutParams layoutParams = window.getAttributes();
 
-                        if (modeBest == null)
-                            modeBest = modeTop;
-
                         switchingModes = !(modeBest.getModeId() == activeMode.getModeId());
                         log("display mode: video " + videoWidth + "w @" + frameRate
                                 + ", active " + modeText(activeMode) + ", target width " + targetText
-                                + ", " + modesResolutionCount + " candidates"
+                                + ruleText + ", " + modesResolutionCount + " candidates"
                                 + (switchingModes ? ", switching to " + modeText(modeBest)
                                         : ", staying put"));
                         if (switchingModes) {
@@ -1586,7 +1702,7 @@ public class Utils {
                     } else {
                         log("display mode: video " + videoWidth + "w @" + frameRate
                                 + ", active " + modeText(activeMode) + ", target width " + targetText
-                                + ", " + modesResolutionCount + " candidates, nothing to switch to");
+                                + ruleText + ", " + modesResolutionCount + " candidates, nothing to switch to");
                     }
                 } else {
                     log("display mode: video " + videoWidth + "w @" + frameRate + ", active "

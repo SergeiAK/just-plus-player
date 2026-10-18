@@ -77,6 +77,8 @@ class Prefs {
     private static final String PREF_KEY_DISPLAY_RESOLUTION_MATCHING = "displayResolutionMatching";
     private static final String PREF_KEY_ALLOW_SYSTEM_FRAMERATE = "allowSystemFrameRate";
     private static final String PREF_KEY_MODE_SWITCH_PAUSE_MS = "modeSwitchPauseMs";
+    private static final String PREF_KEY_REFRESH_RATE_MULTIPLE = "refreshRateMultiple";
+    private static final String PREF_KEY_SKIP_24P = "skip24p";
     private static final String PREF_KEY_REPEAT_TOGGLE = "repeatToggle";
     private static final String PREF_KEY_PLAYLIST_GRID = "playlistGrid";
     private static final String PREF_KEY_TV_SINGLE_BACK = "tvSingleBack";
@@ -175,6 +177,11 @@ class Prefs {
     public static final String HOLD_SPEED_ADJUST = "adjust";
     public static final String HOLD_SPEED_FIXED = "fixed";
 
+    // Which whole multiple of the frame rate the display mode search puts first (Utils.chooseRefreshRate).
+    public static final String RATE_MULTIPLE_EXACT = "exact";
+    public static final String RATE_MULTIPLE_DOUBLE = "double";
+    public static final String RATE_MULTIPLE_HIGHEST = "highest";
+
     public static final String SEARCH_OFF = "off";
     public static final String SEARCH_FIRST = "first";
     public static final String SEARCH_NONE = "none";
@@ -261,6 +268,14 @@ class Prefs {
     // first two seconds were lost; at 3 s from the request the first frame and the first sound were there.
     // The scale is the reference's, its default 0 is not.
     public int modeSwitchPauseMs = 3_000;
+    // Which multiple of the frame rate to ask for: as the video (25 fps at 25 Hz), doubled (at 50) or the
+    // highest the display has (at 50, or 100 on a set that has it). The highest by default, which is
+    // the one rule there was: on a box behind HDMI, which has no 48, 100 or 120 Hz, that is 24p at 24 and
+    // 25 and 30 at twice their rate.
+    public String refreshRateMultiple = RATE_MULTIPLE_HIGHEST;
+    // Leave out 23.976 and 24 Hz and their doubles: for sets that flicker at 24 or take long to settle
+    // there. Films then go to 59.94 or 60 as 3:2, on their own clock.
+    public boolean skip24p = false;
     public boolean repeatToggle = false;
     /** The playlist panel draws frames in a grid rather than a row per file. Off is the row per file. */
     /**
@@ -500,6 +515,8 @@ class Prefs {
         allowSystemFrameRate = mSharedPreferences.getBoolean(PREF_KEY_ALLOW_SYSTEM_FRAMERATE, !Utils.isTvBox(mContext));
         modeSwitchPauseMs = Integer.parseInt(mSharedPreferences.getString(PREF_KEY_MODE_SWITCH_PAUSE_MS,
                 String.valueOf(modeSwitchPauseMs)));
+        refreshRateMultiple = mSharedPreferences.getString(PREF_KEY_REFRESH_RATE_MULTIPLE, refreshRateMultiple);
+        skip24p = mSharedPreferences.getBoolean(PREF_KEY_SKIP_24P, skip24p);
         repeatToggle = mSharedPreferences.getBoolean(PREF_KEY_REPEAT_TOGGLE, repeatToggle);
         playlistGrid = mSharedPreferences.getBoolean(PREF_KEY_PLAYLIST_GRID, playlistGrid);
         tvSingleBack = mSharedPreferences.getBoolean(PREF_KEY_TV_SINGLE_BACK, tvSingleBack);

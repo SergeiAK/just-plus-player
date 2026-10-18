@@ -16218,7 +16218,8 @@ public class PlayerActivity extends Activity {
                 .append(", speed ").append(mPrefs.speed)
                 .append(", resize ").append(mPrefs.resizeMode)
                 .append(mPrefs.tunneling ? ", tunneling" : "")
-                .append(mPrefs.frameRateMatching ? ", frame rate matching" : "")
+                .append(mPrefs.frameRateMatching ? ", frame rate matching (" + mPrefs.refreshRateMultiple
+                        + (mPrefs.skip24p ? ", no 24p)" : ")") : "")
                 .append(backBufferAppliedMs > 0 ? ", back buffer " + backBufferAppliedMs / 1000 + "s" : "")
                 .append(mPrefs.frameRateMatching && mPrefs.displayResolutionMatching
                         ? ", resolution matching" : "")

@@ -248,6 +248,26 @@
                     app:summaryOff="@string/pref_framerate_matching_off"
                     app:title="@string/pref_framerate_matching" />
 
+                <!-- Which multiple the search puts first, and the 24p modes it may leave out: both under the
+                     rate switch, for the same reason as the rows below. The summary carries %s, so the
+                     chosen entry shows above the hint without a summary provider. -->
+                <ListPreference
+                    app:key="refreshRateMultiple"
+                    app:defaultValue="highest"
+                    app:dependency="frameRateMatching"
+                    app:entries="@array/rate_multiple_entries"
+                    app:entryValues="@array/rate_multiple_values"
+                    app:title="@string/pref_rate_multiple"
+                    app:summary="@string/pref_rate_multiple_summary" />
+
+                <SwitchPreferenceCompat
+                    app:key="skip24p"
+                    app:defaultValue="false"
+                    app:dependency="frameRateMatching"
+                    app:summaryOn="@string/pref_skip_24p_on"
+                    app:summaryOff="@string/pref_skip_24p_off"
+                    app:title="@string/pref_skip_24p" />
+
                 <!-- Under the rate switch, which is the only path that reaches the mode search. -->
                 <SwitchPreferenceCompat
                     app:key="displayResolutionMatching"
@@ -265,7 +285,7 @@
                     app:entries="@array/mode_switch_pause_entries"
                     app:entryValues="@array/mode_switch_pause_values"
                     app:title="@string/pref_mode_switch_pause"
-                    app:useSimpleSummaryProvider="true" />
+                    app:summary="@string/pref_mode_switch_pause_summary" />
 
                 <SwitchPreferenceCompat
                     app:key="allowSystemFrameRate"
