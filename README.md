@@ -1,6 +1,6 @@
 # Syntex
 
-> **Personal fork.** Syntex (until October 2026 "Just+ Fork", then briefly "Synthex") is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
+> **Personal fork.** Syntex is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
 
 ### How this fork differs from Just+
 
@@ -26,6 +26,30 @@ Built from the Just+ 2.0.11 source, the last one published upstream: the officia
  * **New glyphs** for audio (a waveform), subtitles and playlist
  * **Long titles** scroll in the header
  * **Controls timeout** (Settings → On screen): 3.5, 5, 8 or 15 seconds, and an option to keep the controls while paused until Back
+
+**Frame rate and resolution matching**
+
+ * **Refresh rate for the frame rate:** as the video (25 fps at 25 Hz), doubled (at 50 Hz, falling back to the rate itself where there is no double) or the highest, which is the default
+ * **No 24p** leaves 23.976/24 Hz and their doubles out, for sets that flicker or stay dark for long at 24 Hz. Where no whole multiple exists, 3:2 on the content's own clock comes next (23.976 at 59.94, 24 at 60)
+ * **The frame changes only to an exact rate.** The resolution follows the video only to a width that has a mode at a whole multiple of the content rate within the density group of the running mode (SD / 720 / 1080+); otherwise only the rate moves. This stops an activity rebuild loop and an HDMI renegotiation every few seconds seen on a Dune HD
+ * **A set pause after the switch** (Settings, under frame rate matching: 0 / 0.5 / 1 / 2 / 3 / 5 s, 3 s by default) before playback starts, so the first seconds of picture and sound are not lost while the panel is dark
+ * **The frame rate is measured by its commonest step,** not the average, so a broadcast recording that drops a field now and then still reads 25 fps and not 49.5
+ * Every setting has a hint line under it saying what it is for
+
+**Resume**
+
+ * **Ask where to start.** A setting chooses between asking when a file is opened (the default), asking for every video, always resuming and always starting over. A film past 95 % of its length, or past the start of end credits no longer than 15 % of it, counts as watched and starts over; in the asking modes under 30 seconds watched also starts over without a question
+ * A position given by a launcher or a room is not asked about. On a TV the focus is on "Resume", also after a key press has left touch mode
+
+**AVI files**
+
+ * **Audio timing.** The fork carries its own copy of Media3's AVI extractor (Apache 2.0, `com.brouken.player.avi`) with exact audio times after a seek and for byte-counted audio (AC3, DTS, MP3/MP2, PCM); upstream Media3 stamps the first audio chunk after a seek about 40 ms early and DTS near zero
+ * **Compressed audio is reframed** (AC3, MPEG audio, DTS) so the decoder gets whole frames instead of the half-frames an AVI chunk can hold; MP2 tagged as MPEG audio layer I/II is accepted, and a header with an odd-sized chunk no longer breaks
+ * **MPEG-4 video in presentation order** (FFmpeg's `genpts`) and DivX packed B-frames unpacked as `mpeg4_unpack_bframes` does, so a stream with B-frames no longer judders on decoders that show uneven times; checked frame by frame against FFmpeg
+
+**Subtitles**
+
+ * **Forced subtitles only,** for a dub in a language from the subtitle list: the first line shows the forced track in that language (by the container flag or the track name such as "rusForced", "форсированные", "надписи") and nothing if the file has none
 
 **Other**
 
