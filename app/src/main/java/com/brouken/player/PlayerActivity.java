@@ -820,6 +820,8 @@ public class PlayerActivity extends Activity {
     private static final long LIVE_WINDOW_MAX_MS = 10 * 60_000L;
     private TextView roomPill;
     private TextView statsView;
+    private InfoCard infoCard;
+    private boolean infoCardOpen;
     private TextView transferView;
     private OutlineTextClock overlayClock;
     private OutlineTextClock headerClock;
@@ -2248,6 +2250,16 @@ public class PlayerActivity extends Activity {
         statsView.setVisibility(View.GONE);
         coordinatorLayout.addView(statsView);
 
+        // The full statistics card (INFO, or More): top-left like the header it covers, with the same
+        // grid margin. It is not tied to the controls: it is opened to read, and a card that faded with
+        // the bar would vanish in the middle of a measurement.
+        infoCard = new InfoCard(this, ui);
+        final CoordinatorLayout.LayoutParams infoLp = new CoordinatorLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        infoLp.gravity = Gravity.START | Gravity.TOP;
+        infoCard.setLayoutParams(infoLp);
+        coordinatorLayout.addView(infoCard);
+
         // Which room we are in. Floating, so it costs no row in the header or the bottom bar — both are
         // grids whose height a fourth line visibly changes — but tied to the controls (see updateRoomBadge),
         // so it is not standing over the film for the whole evening either. Bottom-start is the mirror of
@@ -2546,6 +2558,14 @@ public class PlayerActivity extends Activity {
                     statsView.setMaxWidth(ui.dp(getResources().getConfiguration().screenWidthDp) / 2
                             - ui.heroBox() / 2 - ui.episodeDisc() - statsParams.leftMargin);
                     statsView.setLayoutParams(statsParams);
+                }
+                if (infoCard != null) {
+                    final CoordinatorLayout.LayoutParams infoParams =
+                            (CoordinatorLayout.LayoutParams) infoCard.getLayoutParams();
+                    infoParams.leftMargin = insetH + ui.gridH();
+                    infoParams.topMargin = windowInsets.getSystemWindowInsetTop() + ui.dpS(12);
+                    infoParams.rightMargin = insetH + ui.gridH();
+                    infoCard.setLayoutParams(infoParams);
                 }
 
                 Utils.setViewMargins(findViewById(R.id.exo_error_message), 0, windowInsets.getSystemWindowInsetTop() / 2, 0, getResources().getDimensionPixelSize(R.dimen.exo_error_message_margin_bottom) + windowInsets.getSystemWindowInsetBottom() / 2);
@@ -3293,6 +3313,12 @@ public class PlayerActivity extends Activity {
                     R.drawable.ic_arrow_back_24dp, Utils.BACK_CONFIRM_WINDOW_MS);
             return;
         }
+        // The statistics card is the first thing Back closes, on every device: it is a read-only overlay
+        // and nothing under it is waiting for the press.
+        if (infoCardOpen) {
+            closeInfoCard();
+            return;
+        }
         // On TV the remote's Back is pressed mid-interaction all the time, so it has to consume what is
         // open before it means "leave": a pending key-seek, then the controls. Only with nothing left to
         // close does it ask for a second press — which the viewer can turn off, keeping the two steps that
@@ -3642,6 +3668,11 @@ public class PlayerActivity extends Activity {
                     // there from play/pause; Up still lands on play/pause. See the visibility listener.
                     focusTimeBarOnShow = haveMedia;
                     playerView.showController();
+                }
+                return true;
+            case KeyEvent.KEYCODE_INFO:
+                if (event.getRepeatCount() == 0) {
+                    toggleInfoCard();
                 }
                 return true;
             case KeyEvent.KEYCODE_BACK:
@@ -6322,6 +6353,150 @@ public class PlayerActivity extends Activity {
         if (transferView != null) {
             transferView.setVisibility(View.GONE);
         }
+    }
+
+    private void toggleInfoCard() {
+        if (infoCardOpen) {
+            closeInfoCard();
+        } else if (haveMedia && player != null && infoCard != null) {
+            infoCardOpen = true;
+            updateInfoCard();
+            playerView.postDelayed(infoCardRunnable, 1000);
+        }
+    }
+
+    private void closeInfoCard() {
+        infoCardOpen = false;
+        if (playerView != null) {
+            playerView.removeCallbacks(infoCardRunnable);
+        }
+        if (infoCard != null) {
+            infoCard.setVisibility(View.GONE);
+        }
+    }
+
+    private final Runnable infoCardRunnable = new Runnable() {
+        @Override
+        public void run() {
+            updateInfoCard();
+            if (infoCardOpen) {
+                playerView.postDelayed(this, 1000);
+            }
+        }
+    };
+
+    // 23.976 and 25 both read as they are written on a box: three decimals at most, no trailing zeros.
+    private static String rate(float value) {
+        return String.format(Locale.US, "%.3f", value).replaceAll("\\.?0+$", "");
+    }
+
+    /**
+     * The statistics card: what the file is, what decodes it, what the display was set to and how the
+     * buffer stands. Refreshed once a second while open. Everything here is read from the player or
+     * from state the app already keeps; nothing is measured for the card's sake.
+     */
+    private void updateInfoCard() {
+        if (!infoCardOpen || infoCard == null) {
+            return;
+        }
+        if (player == null || !haveMedia || inPip) {
+            closeInfoCard();
+            return;
+        }
+        final List<InfoCard.Section> sections = new ArrayList<>();
+
+        final Format video = player.getVideoFormat();
+        final InfoCard.Section videoSection = new InfoCard.Section(getString(R.string.stats_sec_video));
+        if (video != null) {
+            final String codec = shortCodec(video.sampleMimeType);
+            videoSection.row(getString(R.string.stats_l_format),
+                    (codec != null ? codec + " · " : "") + video.width + "×" + video.height);
+            final float fps = videoFrameRate();
+            videoSection.row(getString(R.string.stats_l_framerate), fps > 0 ? rate(fps) + " fps" : null);
+            if (video.bitrate != Format.NO_VALUE) {
+                videoSection.row(getString(R.string.stats_l_stream),
+                        getString(R.string.quality_bitrate, video.bitrate / 1_000_000f));
+            } else {
+                final float overall = overallBitrate();
+                if (overall > 0) {
+                    videoSection.row(getString(R.string.stats_l_average),
+                            getString(R.string.quality_bitrate, overall));
+                }
+            }
+            if (videoDecoderName != null) {
+                videoSection.row(getString(R.string.stats_l_decoder),
+                        getString(decodedInSoftware(video) ? R.string.stats_v_software : R.string.stats_v_hardware)
+                                + " · " + videoDecoderName);
+            }
+            final ColorInfo colorInfo = video.colorInfo;
+            if (colorInfo != null) {
+                final String range = colorInfo.colorTransfer == C.COLOR_TRANSFER_ST2084 ? "HDR10 (PQ)"
+                        : colorInfo.colorTransfer == C.COLOR_TRANSFER_HLG ? "HLG" : "SDR";
+                videoSection.row(getString(R.string.stats_l_range), range);
+            }
+            videoSection.row(getString(R.string.stats_l_dv), dolbyVisionStatus());
+        }
+        final DecoderCounters counters = player.getVideoDecoderCounters();
+        if (counters != null) {
+            videoSection.row(getString(R.string.stats_l_dropped), String.valueOf(counters.droppedBufferCount));
+        }
+        sections.add(videoSection);
+
+        final Format audio = player.getAudioFormat();
+        if (audio != null) {
+            final InfoCard.Section audioSection = new InfoCard.Section(getString(R.string.stats_sec_audio));
+            final String channels = audio.channelCount == 1 ? "mono" : audio.channelCount == 2 ? "stereo"
+                    : audio.channelCount == 6 ? "5.1" : audio.channelCount == 8 ? "7.1"
+                    : audio.channelCount > 0 ? audio.channelCount + " ch" : null;
+            final String codec = shortCodec(audio.sampleMimeType);
+            audioSection.row(getString(R.string.stats_l_track),
+                    (codec != null ? codec : "") + (channels != null ? " · " + channels : "")
+                            + (audio.sampleRate > 0 ? " · " + rate(audio.sampleRate / 1000f) + " kHz" : ""));
+            if (audio.bitrate != Format.NO_VALUE) {
+                audioSection.row(getString(R.string.stats_l_stream),
+                        String.format(Locale.US, "%d kbps", Math.round(audio.bitrate / 1000f)));
+            }
+            final boolean bitstream = audioSink != null && audioSink.isPassthrough();
+            audioSection.row(getString(R.string.stats_l_output),
+                    getString(bitstream ? R.string.stats_audio_passthrough : R.string.stats_audio_decoded));
+            if (!bitstream && audioDecoderName != null) {
+                audioSection.row(getString(R.string.stats_l_decoder), audioDecoderName);
+            }
+            sections.add(audioSection);
+        }
+
+        final InfoCard.Section screen = new InfoCard.Section(getString(R.string.stats_sec_screen));
+        final android.view.Display.Mode mode = getWindowManager().getDefaultDisplay().getMode();
+        screen.row(getString(R.string.stats_l_mode), mode.getPhysicalWidth() + "×" + mode.getPhysicalHeight()
+                + " · " + rate(mode.getRefreshRate()) + " Hz");
+        if (mPrefs.frameRateMatching) {
+            final String multiple = getString(Prefs.RATE_MULTIPLE_EXACT.equals(mPrefs.refreshRateMultiple)
+                    ? R.string.stats_v_exact : Prefs.RATE_MULTIPLE_DOUBLE.equals(mPrefs.refreshRateMultiple)
+                    ? R.string.stats_v_double : R.string.stats_v_highest);
+            screen.row(getString(R.string.stats_l_matching), multiple
+                    + (mPrefs.skip24p ? " · " + getString(R.string.stats_v_no24p) : "")
+                    + (mPrefs.displayResolutionMatching ? " · " + getString(R.string.stats_v_resolution) : ""));
+            screen.row(getString(R.string.stats_l_pause),
+                    rate(mPrefs.modeSwitchPauseMs / 1000f) + " " + getString(R.string.stats_v_seconds));
+        } else {
+            screen.row(getString(R.string.stats_l_matching), getString(R.string.stats_v_off));
+        }
+        sections.add(screen);
+
+        final InfoCard.Section transfer = new InfoCard.Section(getString(R.string.stats_sec_buffer));
+        final long bufferedMs = player.getTotalBufferedDuration();
+        transfer.row(getString(R.string.stats_l_buffer), getString(R.string.stats_v_buffer_of,
+                bufferedMs / 1000, bufferCeilingMs() / 1000));
+        if (bandwidthBitrate > 0) {
+            transfer.row(getString(R.string.stats_l_network),
+                    getString(R.string.quality_bitrate, bandwidthBitrate / 1_000_000f));
+        }
+        sections.add(transfer);
+
+        final boolean landscape =
+                getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        infoCard.setSections(sections, landscape);
+        infoCard.setVisibility(View.VISIBLE);
     }
 
     /**
@@ -10671,6 +10846,10 @@ public class PlayerActivity extends Activity {
         // Rides the stats panel: the details it reports are the ones on screen, and the row would be
         // noise for everyone who has not asked for them. From the menu rather than a long-press on the
         // panel, so it is reachable with a D-pad and the panel stays free of touch handling.
+        if (player != null) {
+            items.add(new Dialogs.MenuItem(R.drawable.ic_info_24dp,
+                    getString(R.string.stats_title), null, false, this::toggleInfoCard));
+        }
         if (player != null && mPrefs.showStats) {
             items.add(new Dialogs.MenuItem(R.drawable.ic_content_copy_24dp,
                     getString(R.string.stats_report_title), null, false, this::showPlayerState));
