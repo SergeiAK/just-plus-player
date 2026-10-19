@@ -471,6 +471,9 @@ public class PlayerActivity extends Activity {
     private boolean softwareVideoDowngraded;
     // Loader's throughput estimate — the one stats figure the player itself cannot be asked for.
     private long bandwidthBitrate;
+    // Frames dropped over the last minute for the statistics card. Fed by the analytics listener all the
+    // time, not only while the card is up; restarted per player build, per item and per seek.
+    private final DropWindow dropWindow = new DropWindow(SystemClock.elapsedRealtime());
     /**
      * The client the media path reads through. OkHttp rather than HttpURLConnection for one reason:
      * DefaultHttpDataSource calls disconnect() on every close and pools nothing, so each of the four
@@ -512,6 +515,12 @@ public class PlayerActivity extends Activity {
         public void onBandwidthEstimate(AnalyticsListener.EventTime eventTime, int totalLoadTimeMs,
                                         long totalBytesLoaded, long bitrateEstimate) {
             bandwidthBitrate = bitrateEstimate;
+        }
+
+        @Override
+        public void onDroppedVideoFrames(AnalyticsListener.EventTime eventTime, int droppedFrames,
+                                         long elapsedMs) {
+            dropWindow.add(SystemClock.elapsedRealtime(), droppedFrames);
         }
 
         // The rest is the timeline a field report needs and nothing else records: when each renderer was
@@ -6473,8 +6482,15 @@ public class PlayerActivity extends Activity {
         final DecoderCounters counters = player.getVideoDecoderCounters();
         if (counters != null) {
             final int dropped = counters.droppedBufferCount;
-            videoSection.row(getString(R.string.stats_l_dropped), String.valueOf(dropped),
-                    dropped > 0 ? InfoCard.Tone.WARN : InfoCard.Tone.PLAIN);
+            final long now = SystemClock.elapsedRealtime();
+            final int recent = dropWindow.count(now);
+            final long observedSec = dropWindow.observedMs(now) / 1000;
+            // Under a minute observed, say how much: "0 in the last 12 s" is not "0 in the last minute".
+            final String window = observedSec >= DropWindow.WINDOW_MS / 1000
+                    ? getString(R.string.stats_dropped_minute, recent)
+                    : getString(R.string.stats_dropped_seconds, recent, observedSec);
+            videoSection.row(getString(R.string.stats_l_dropped), dropped + " · " + window,
+                    recent > 0 || dropped > 0 ? InfoCard.Tone.WARN : InfoCard.Tone.PLAIN);
         }
         sections.add(videoSection);
 
@@ -12121,6 +12137,7 @@ public class PlayerActivity extends Activity {
         videoDecoderName = null;
         audioDecoderName = null;
         bandwidthBitrate = 0;
+        dropWindow.reset(SystemClock.elapsedRealtime());
         // A restart that never got its onTracksChanged belongs to the player being replaced here.
         audioRestartInFlight = false;
         audioRestartSettling = false;
@@ -13828,6 +13845,11 @@ public class PlayerActivity extends Activity {
             // each skipped silence, and on internal live-window updates.
             if (oldPosition.mediaItemIndex != newPosition.mediaItemIndex) {
                 playerStartPositionMs = currentPeriodPositionMs();
+            }
+            // The burst of drops a seek causes says nothing about the decoder: count the minute afresh.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK
+                    || oldPosition.mediaItemIndex != newPosition.mediaItemIndex) {
+                dropWindow.reset(SystemClock.elapsedRealtime());
             }
             // A delayed cue still waiting to be shown belongs to the moment it was read at, not to this one.
             if (subtitleOffset != null) {

@@ -335,6 +335,8 @@
     <string name="stats_l_range">Діапазон</string>
     <string name="stats_l_dv">Dolby Vision</string>
     <string name="stats_l_dropped">Пропущено</string>
+    <string name="stats_dropped_minute">за хвилину: %1$d</string>
+    <string name="stats_dropped_seconds">за %2$d с: %1$d</string>
     <string name="stats_l_track">Доріжка</string>
     <string name="stats_l_output">Вихід</string>
     <string name="stats_l_mode">Режим</string>
