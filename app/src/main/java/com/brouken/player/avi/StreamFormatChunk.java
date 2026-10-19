@@ -129,8 +129,17 @@ import com.google.common.collect.ImmutableList;
   private static String getMimeTypeFromCompression(int compression) {
     switch (compression) {
       case 0x3234504d: // MP42
+      case 0x3234706d: // mp42
+      case 0x32564944: // DIV2
         return MimeTypes.VIDEO_MP42;
+      // DivX 3 is MS-MPEG-4 v3 under its own names, and its files say DIV3 far more often than MP43.
+      // No device decoder claims it; FfmpegVideoRenderer does.
       case 0x3334504d: // MP43
+      case 0x3334706d: // mp43
+      case 0x33564944: // DIV3
+      case 0x33766964: // div3
+      case 0x34564944: // DIV4
+      case 0x34766964: // div4
         return MimeTypes.VIDEO_MP43;
       case 0x34363248: // H264
       case 0x31637661: // avc1

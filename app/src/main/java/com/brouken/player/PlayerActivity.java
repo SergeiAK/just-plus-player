@@ -457,6 +457,10 @@ public class PlayerActivity extends Activity {
     // recovery rebuilds the player, and a screen restart must not hand the track back to the decoder that
     // has already been proven unable to carry it.
     private static final Set<String> sessionFfmpegAudioFormats = new HashSet<>();
+    // The same for video (see recoverByDecodingVideoWithFfmpeg): formats a device decoder accepted and
+    // then could not decode - XviD with GMC on Shield is the field case - go to FfmpegVideoRenderer.
+    // Keyed like the audio set, by mime and codec string, and static for the same reasons.
+    private static final Set<String> sessionFfmpegVideoFormats = new HashSet<>();
 
     // Video formats a decoder refused with ERROR_INSUFFICIENT_RESOURCE even though the device's own
     // capability table said it could take them. The table is a promise about geometry and rate; the
@@ -12326,6 +12330,14 @@ public class PlayerActivity extends Activity {
                                 /* numOutputBuffers= */ 6, /* useCustomAllocator= */ false));
                     }
                 }
+                // Last, behind the platform renderer and dav1d, and whatever the decoder priority: it
+                // is the decoder for what nothing else will take - a format no device decoder claims
+                // (DivX 3 on most boxes), or one whose device decoder has already failed on it this
+                // session (sessionFfmpegVideoFormats, refused by the platform renderer below).
+                if (FfmpegVideoDecoder.isAvailable()) {
+                    out.add(new FfmpegVideoRenderer(allowedVideoJoiningTimeMs, eventHandler,
+                            eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY));
+                }
                 if (platform >= out.size()
                         || !(out.get(platform) instanceof MediaCodecVideoRenderer)) {
                     return;
@@ -12342,6 +12354,17 @@ public class PlayerActivity extends Activity {
                 out.set(platform, new MediaCodecVideoRenderer(context, getCodecAdapterFactory(),
                         mediaCodecSelector, allowedVideoJoiningTimeMs, enableDecoderFallback,
                         eventHandler, eventListener, MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY) {
+                    @Override
+                    protected int supportsFormat(MediaCodecSelector selector, Format format)
+                            throws MediaCodecUtil.DecoderQueryException {
+                        // Same reasoning as the audio renderer's: a format whose device decoder has
+                        // failed on it is refused here, so track selection walks on to the FFmpeg one.
+                        if (sessionFfmpegVideoFormats.contains(videoFormatKey(format))) {
+                            return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_SUBTYPE);
+                        }
+                        return super.supportsFormat(selector, format);
+                    }
+
                     @Override
                     protected float getCodecOperatingRateV23(float targetPlaybackSpeed, Format format,
                                                              Format[] streamFormats) {
@@ -14507,6 +14530,14 @@ public class PlayerActivity extends Activity {
                     && recoverByDecodingAudioWithFfmpeg(error)) {
                 return;
             }
+            // The video decoder refused the stream - at its first buffer or already at init, once every
+            // device decoder for the mime has had its try. Re-reads and a screen restart hand the same
+            // stream to the same decoder; the FFmpeg one is what every player that plays the file uses.
+            if ((error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED
+                    || error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)
+                    && recoverByDecodingVideoWithFfmpeg(error)) {
+                return;
+            }
             // The decoder never opened for a format software decoding was never going to carry — 4K on
             // a box with no hardware decoder, where the frame buffers alone do not fit. The re-reads below
             // would spend their budget on a certain failure, so offer the lower-quality variant first.
@@ -15118,6 +15149,37 @@ public class PlayerActivity extends Activity {
         restorePlayState = true;
         // Same reason as in recoverByRevokingAudioMime(): keep any Dolby Vision workaround across this
         // rebuild rather than letting initializePlayer clear it.
+        pendingStuckRecovery = true;
+        playerView.post(() -> {
+            releasePlayer();
+            initializePlayer();
+        });
+        return true;
+    }
+
+    /**
+     * A device video decoder failed on a stream FFmpeg can decode. The field case is XviD with global
+     * motion compensation on Shield: OMX.Nvidia.mp4.decode accepts the configuration and fails on the
+     * first buffer ("Unsupported sprite_enable 0x2"), and the Android software decoder fails the same
+     * way. Media3's decoder fallback does not help - it only moves on when init fails - so, as for audio,
+     * the format is written down and the player rebuilt: the platform renderer then refuses it and track
+     * selection reaches FfmpegVideoRenderer. The set is the guard: a second failure of the same format
+     * ends on the error screen. A failure in the FFmpeg renderer itself is not answered here.
+     */
+    private boolean recoverByDecodingVideoWithFfmpeg(PlaybackException error) {
+        if (!(error instanceof ExoPlaybackException)) {
+            return false;
+        }
+        final ExoPlaybackException exo = (ExoPlaybackException) error;
+        final Format format = exo.rendererFormat;
+        final String mime = format != null ? format.sampleMimeType : null;
+        if (mime == null || !MimeTypes.isVideo(mime) || !FfmpegVideoDecoder.supportsMime(mime)
+                || "FfmpegVideoRenderer".equals(exo.rendererName)
+                || !sessionFfmpegVideoFormats.add(videoFormatKey(format))) {
+            return false;
+        }
+        Utils.log("video decoding moved to ffmpeg: " + videoFormatKey(format));
+        restorePlayState = true;
         pendingStuckRecovery = true;
         playerView.post(() -> {
             releasePlayer();
