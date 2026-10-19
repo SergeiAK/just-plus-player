@@ -54,7 +54,7 @@ public final class Updater {
     private Updater() {}
 
     private static final String RELEASES_URL =
-            "https://api.github.com/repos/SergeiAK/just-plus-player/releases";
+            "https://api.github.com/repos/SergeiAK/syntex/releases";
     /** How often a launch may ask; shared by the player and the browser so one launch never asks twice. */
     public static final long CHECK_INTERVAL_MS = 60 * 60 * 1000L;
 

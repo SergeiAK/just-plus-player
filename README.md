@@ -1,13 +1,13 @@
 # Syntex
 
-> **Personal fork.** Syntex is a fork of [Just+ Player](https://github.com/just-plus-player/just-plus-player) kept for my own use and experiments. It is not an official build and is not supported here.
+> **Syntex** is a video player for Android TV, phones and tablets by SergeiAK, based on [Just+ Player](https://github.com/just-plus-player/just-plus-player) 2.0.11 by @levende. A personal project made for my own use; it is not a Just+ build and comes with no support.
 
-### How this fork differs from Just+
+### What Syntex changes in Just+ 2.0.11
 
-Built from the Just+ 2.0.11 source, the last one published upstream: the official releases from 2.1.1 on are APK-only, and none of their changes are in this fork. What the fork changes:
+Built from the Just+ 2.0.11 source, the last one published upstream: the official releases from 2.1.1 on are APK-only, and none of their changes are here. What Syntex changes:
 
  * **Installs next to the official app.** Package `com.syntex.player`, shown in the launcher as "Syntex" with its own icon and TV banner, with its own settings. Apps that hand the player series and episode details by package name (LAMPA among them) talk to the official app only; for them this one is a plain video player
- * **Updates and the source link point here.** The in-app update check looks at this fork's releases, and About → Source code (and its QR code) open this repository
+ * **Updates and the source link point here.** The in-app update check looks at this repository's releases, and About → Source code (and its QR code) open this repository
 
 **File browser**
 
@@ -43,7 +43,7 @@ Built from the Just+ 2.0.11 source, the last one published upstream: the officia
 
 **AVI files**
 
- * **Audio timing.** The fork carries its own copy of Media3's AVI extractor (Apache 2.0, `com.brouken.player.avi`) with exact audio times after a seek and for byte-counted audio (AC3, DTS, MP3/MP2, PCM); upstream Media3 stamps the first audio chunk after a seek about 40 ms early and DTS near zero
+ * **Audio timing.** Syntex carries its own copy of Media3's AVI extractor (Apache 2.0, `com.brouken.player.avi`) with exact audio times after a seek and for byte-counted audio (AC3, DTS, MP3/MP2, PCM); upstream Media3 stamps the first audio chunk after a seek about 40 ms early and DTS near zero
  * **Compressed audio is reframed** (AC3, MPEG audio, DTS) so the decoder gets whole frames instead of the half-frames an AVI chunk can hold; MP2 tagged as MPEG audio layer I/II is accepted, and a header with an odd-sized chunk no longer breaks
  * **MPEG-4 video in presentation order** (FFmpeg's `genpts`) and DivX packed B-frames unpacked as `mpeg4_unpack_bframes` does, so a stream with B-frames no longer judders on decoders that show uneven times; checked frame by frame against FFmpeg
 
@@ -56,8 +56,14 @@ Built from the Just+ 2.0.11 source, the last one published upstream: the officia
  * **Bottom bar order on phones:** subtitles → audio → quality → playlist (upstream 2.0.11: quality → audio → subtitles → playlist)
  * **Watch together on Android 6:** the room list no longer crashes there (`List.sort` needs Android 7; replaced with `Collections.sort`)
 
-[![Latest release](https://img.shields.io/github/v/release/just-plus-player/just-plus-player?logo=github&logoColor=white&cacheSeconds=3600)](https://github.com/just-plus-player/just-plus-player/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/just-plus-player/just-plus-player/total?logo=github&logoColor=white&label=downloads&cacheSeconds=3600)](https://github.com/just-plus-player/just-plus-player/releases)
+## Install
+
+No releases are published here yet; build from source with `./gradlew assembleLatestUniversalDebug`. Once there are releases, sideloaded builds check for updates themselves, show what changed and install the new version through the system installer, without going through a store.
+
+## The base: Just+ Player 2.0.11
+
+What follows is the Just+ description as of 2.0.11, the source Syntex is built from.
+
 [![Media3](https://img.shields.io/badge/Media3-1.11.0-007ec6?cacheSeconds=3600)](https://github.com/androidx/media/releases/tag/1.11.0)
 
 Video player and file browser for Android phones, tablets and Android TV, built on [Media3](https://github.com/androidx/media) (formerly [ExoPlayer](https://github.com/google/ExoPlayer)). Android 6.0 or later, one APK for all form factors.
@@ -65,14 +71,6 @@ Video player and file browser for Android phones, tablets and Android TV, built 
 It is a fork of [Just (Video) Player](https://github.com/moneytoo/Player) by Marcel Dopita and keeps what makes it good: no ads, no tracking, very few permissions, ExoPlayer's `ffmpeg` extension for AC3, E-AC-3, DTS, DTS-HD and TrueHD, and audio that stays in sync over Bluetooth. On top of that it opens on a file browser with network folders, has a reworked player interface, and adds the features below.
 
 <img src="fastlane/metadata/android/en-US/images/readmeScreenshots/player.jpg" width="880">
-
-## Install
-
-[![Download the APK](https://img.shields.io/badge/Download%20the%20APK-latest%20release-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/just-plus-player/just-plus-player/releases/latest) [![Downloader code 1183424](https://img.shields.io/badge/Downloader%20code-1183424-FF9900?style=for-the-badge&logo=amazonfiretv&logoColor=white)](https://www.aftvnews.com/downloader/)
-
-**Phone, tablet, TV box** — download the APK and open it. **Android TV / Fire TV** — no keyboard needed: install [Downloader](https://www.aftvnews.com/downloader/) and enter the code above.
-
-Sideloaded builds check for updates themselves, show what changed and install the new version through the system installer, without going through a store.
 
 ## What Just+ adds
 

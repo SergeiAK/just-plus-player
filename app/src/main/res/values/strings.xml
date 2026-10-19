@@ -611,17 +611,17 @@
     <string name="pref_about_device">Device info</string>
 
     <string name="about_github" translatable="false">GitHub</string>
-    <string name="about_github_url" translatable="false">https://github.com/SergeiAK/just-plus-player</string>
+    <string name="about_github_url" translatable="false">https://github.com/SergeiAK/syntex</string>
 
     <string name="about_github_qr">Scan with a phone camera to open the project page.</string>
 
     <string name="pref_about_project">Project</string>
     <string name="pref_about_developer">Developer</string>
-    <string name="about_developer_fork">Just+ Player by @levende, with changes by SergeiAK</string>
+    <string name="about_developer_credit">SergeiAK. Based on Just+ Player by @levende</string>
     <string name="pref_about_source">Source code</string>
 
     <string name="about_developer" translatable="false">@levende</string>
-    <string name="about_github_repo" translatable="false">github.com/SergeiAK/just-plus-player</string>
+    <string name="about_github_repo" translatable="false">github.com/SergeiAK/syntex</string>
 
     <plurals name="browse_videos">
         <item quantity="one">%d video</item>

@@ -510,7 +510,7 @@
 
     <string name="pref_about_project">Проєкт</string>
     <string name="pref_about_developer">Розробник</string>
-    <string name="about_developer_fork">Just+ Player від @levende, зі змінами від SergeiAK</string>
+    <string name="about_developer_credit">SergeiAK. На основі Just+ Player від @levende</string>
     <string name="pref_about_source">Вихідний код</string>
 
 

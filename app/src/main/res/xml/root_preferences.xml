@@ -828,7 +828,7 @@
                     app:icon="@drawable/ic_person_24dp"
                     app:key="aboutDeveloper"
                     app:selectable="false"
-                    app:summary="@string/about_developer_fork"
+                    app:summary="@string/about_developer_credit"
                     app:title="@string/pref_about_developer" />
 
                 <!-- Opens a browser, or on a television a code a phone camera can take. -->
