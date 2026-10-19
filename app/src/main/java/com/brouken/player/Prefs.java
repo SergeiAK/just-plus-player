@@ -138,7 +138,8 @@ class Prefs {
     private static final String PREF_KEY_SKIP_COUNTDOWN = "skipCountdown";
     private static final String PREF_KEY_SHOW_CLOCK = "showClock";
     private static final String PREF_KEY_TIME_REMAINING = "timeRemaining";
-    private static final String PREF_KEY_SHOW_STATS = "showStats";
+    // The old side panel's switch was "showStats"; a new key, so a panel left on does not open the card.
+    private static final String PREF_KEY_INFO_CARD_OPEN = "infoCardOpen";
     private static final String PREF_KEY_SHOW_TRANSFER = "showTransfer";
     private static final String PREF_KEY_SYSTEM_VOLUME = "systemVolume";
     private static final String PREF_KEY_TOGETHER_NICK = "togetherNick";
@@ -395,8 +396,9 @@ class Prefs {
     public boolean showClock = false;
     /** Bottom bar counts down what is left instead of showing the total duration. */
     public boolean timeRemaining = false;
-    public boolean showStats = false;
-    /** Buffer, network and bitrate on one line above the seek bar, apart from the stats panel. */
+    /** The statistics card was left open: it comes back on the next file and the next start. */
+    public boolean infoCardOpen = false;
+    /** Buffer, network and bitrate on one line above the seek bar. */
     public boolean showTransfer = false;
     public boolean systemVolume = true;
     /** How other people in a watch-together room see this device. Generated once, then editable. */
@@ -587,7 +589,7 @@ class Prefs {
         skipCountdown = migrateWithdrawnValues(mSharedPreferences);
         showClock = mSharedPreferences.getBoolean(PREF_KEY_SHOW_CLOCK, showClock);
         timeRemaining = mSharedPreferences.getBoolean(PREF_KEY_TIME_REMAINING, timeRemaining);
-        showStats = mSharedPreferences.getBoolean(PREF_KEY_SHOW_STATS, showStats);
+        infoCardOpen = mSharedPreferences.getBoolean(PREF_KEY_INFO_CARD_OPEN, infoCardOpen);
         showTransfer = mSharedPreferences.getBoolean(PREF_KEY_SHOW_TRANSFER, showTransfer);
         // Forced on for TV boxes, where the remote routes volume to the panel or receiver over CEC and
         // only the system stream responds — the setting is hidden there too.
@@ -1223,6 +1225,12 @@ class Prefs {
         final SharedPreferences.Editor sharedPreferencesEditor = mSharedPreferences.edit();
         sharedPreferencesEditor.putInt(PREF_KEY_VOLUME_PERCENT, volume);
         sharedPreferencesEditor.apply();
+    }
+
+    /** Opened or closed by the viewer; a card closed because the file ended or PiP began is not written. */
+    public void updateInfoCardOpen(final boolean value) {
+        this.infoCardOpen = value;
+        mSharedPreferences.edit().putBoolean(PREF_KEY_INFO_CARD_OPEN, value).apply();
     }
 
     /** Asked when a room is created, remembered as the next one's default. */

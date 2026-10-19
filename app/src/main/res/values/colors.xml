@@ -85,6 +85,11 @@
     <!-- A row that is not the current one: opaque grey, not white at an alpha, so it stays a step
          below the current row even where the fill behind them differs. -->
     <color name="ink_row_inactive">#FFDDDDDD</color>
+    <!-- Statistics card verdicts: the value that is as it should be (a hardware decoder) and the one
+         worth a second look (frames lost, a software decoder, a recovery that fired). Light tints, so
+         they read on the card's black without shouting over the white rows around them. -->
+    <color name="ink_good">#FF81C784</color>
+    <color name="ink_warn">#FFFFD54F</color>
 
     <!-- Player chrome surfaces, all translucent so the picture keeps showing through. Two families:
          a near-opaque one the panels and pills are cut from, and the plainly translucent black of

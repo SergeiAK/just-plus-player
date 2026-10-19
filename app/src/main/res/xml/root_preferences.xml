@@ -166,13 +166,6 @@
                 app:title="@string/pref_time_remaining" />
 
             <SwitchPreferenceCompat
-                app:key="showStats"
-                app:defaultValue="false"
-                app:summaryOn="@string/pref_show_stats_on"
-                app:summaryOff="@string/pref_show_stats_off"
-                app:title="@string/stats_title" />
-
-            <SwitchPreferenceCompat
                 app:key="showTransfer"
                 app:defaultValue="false"
                 app:summaryOn="@string/pref_show_transfer_on"

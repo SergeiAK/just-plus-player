@@ -415,7 +415,7 @@
     <string name="stats_dropped">Dropped frames: %1$d</string>
     <string name="stats_network">Network: %1$s</string>
     <string name="stats_stream">Stream: %1$s</string>
-    <string name="stats_overall">Average: %1$s</string>
+    <string name="stats_overall">Average bitrate: %1$s</string>
     <string name="stats_report_title">Playback report</string>
     <string name="stats_sec_video">Video</string>
     <string name="stats_sec_audio">Audio</string>
@@ -423,8 +423,9 @@
     <string name="stats_sec_buffer">Buffer and network</string>
     <string name="stats_l_format">Format</string>
     <string name="stats_l_framerate">Frame rate</string>
-    <string name="stats_l_stream">Stream</string>
-    <string name="stats_l_average">Average</string>
+    <string name="stats_l_bitrate">Bitrate</string>
+    <string name="stats_v_stream">stream</string>
+    <string name="stats_v_average">average over the file</string>
     <string name="stats_l_decoder">Decoder</string>
     <string name="stats_l_range">Range</string>
     <string name="stats_l_dv">Dolby Vision</string>
@@ -448,11 +449,9 @@
     <string name="stats_v_seconds">s</string>
     <string name="stats_v_off">off</string>
     <string name="stats_v_buffer_of">%1$d of %2$d s</string>
-    <string name="pref_show_stats_on">Buffer, decoders and dropped frames are shown here</string>
-    <string name="pref_show_stats_off">Buffer, decoders and dropped frames stay hidden</string>
     <string name="pref_show_transfer">Transfer line</string>
     <string name="pref_show_transfer_on">Buffer, network and bitrate sit above the seek bar</string>
-    <string name="pref_show_transfer_off">Buffer, network and bitrate stay in statistics</string>
+    <string name="pref_show_transfer_off">Hidden; the statistics card (More → Statistics) still has them</string>
     <string name="pref_keep_awake_on_pause">Keep the screen on while paused</string>
     <string name="pref_keep_awake_on_pause_on">The screensaver stays away, for up to two hours</string>
     <string name="pref_keep_awake_on_pause_off">The screensaver comes on the way it usually does</string>

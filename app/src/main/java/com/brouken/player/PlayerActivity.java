@@ -498,6 +498,7 @@ public class PlayerActivity extends Activity {
                                              long initializedTimestampMs, long initializationDurationMs) {
             videoDecoderName = decoderName;
             Utils.log("video decoder: init " + decoderName + " in " + initializationDurationMs + " ms");
+            restoreInfoCard();
         }
 
         @Override
@@ -819,9 +820,11 @@ public class PlayerActivity extends Activity {
     // Longest window still read as a live broadcast rather than a recording — see isLiveStream().
     private static final long LIVE_WINDOW_MAX_MS = 10 * 60_000L;
     private TextView roomPill;
-    private TextView statsView;
     private InfoCard infoCard;
     private boolean infoCardOpen;
+    /** The file Back hid the card on: statistics stay on, but not over this one again. */
+    @Nullable
+    private Uri infoCardHiddenUri;
     private TextView transferView;
     private OutlineTextClock overlayClock;
     private OutlineTextClock headerClock;
@@ -1530,9 +1533,8 @@ public class PlayerActivity extends Activity {
         @Override
         public void run() {
             updateEndsAt();
-            // The stats panel needs the same once-a-second tick over the same lifetime (controls visible),
-            // so it rides this one rather than starting a second timer.
-            updateStats();
+            // The transfer line needs the same once-a-second tick over the same lifetime (controls
+            // visible), so it rides this one rather than starting a second timer.
             updateTransfer();
             if (controllerVisible) {
                 playerView.postDelayed(this, 1000);
@@ -2227,36 +2229,13 @@ public class PlayerActivity extends Activity {
         overlayClock.setVisibility(View.GONE);
         coordinatorLayout.addView(overlayClock);
 
-        // Live playback stats, opened from the overflow menu. It rides the controls (updated by
-        // endsAtRunnable, hidden by stopEndsAtUpdates), so it is never left sitting over the video, and it
-        // carries no touch handling of its own — the left half of the screen is the brightness swipe zone.
-        statsView = new TextView(this);
-        statsView.setTextColor(ContextCompat.getColor(this, R.color.ink_medium));
-        statsView.setTypeface(Typeface.MONOSPACE);
-        statsView.setTextSize(TypedValue.COMPLEX_UNIT_SP, ui.textInfo());
-        // Same corner as the lock button, the time pill and the poster — a floating box in this UI is rounded.
-        final GradientDrawable statsBackground = new GradientDrawable();
-        statsBackground.setColor(ContextCompat.getColor(this, R.color.ui_controls_background));
-        statsBackground.setCornerRadius(ui.pillCorner());
-        statsView.setBackground(statsBackground);
-        final int statsPadding = Utils.dpToPx(8);
-        statsView.setPadding(statsPadding, statsPadding, statsPadding, statsPadding);
-        final CoordinatorLayout.LayoutParams statsLp = new CoordinatorLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        // Mid-left: the only band the controls leave free, since the header and the bottom bar are on
-        // screen whenever the panel is. The left margin is the shared content grid, set with the insets.
-        statsLp.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-        statsView.setLayoutParams(statsLp);
-        statsView.setVisibility(View.GONE);
-        coordinatorLayout.addView(statsView);
-
-        // The full statistics card (INFO, or More): top-left like the header it covers, with the same
-        // grid margin. It is not tied to the controls: it is opened to read, and a card that faded with
-        // the bar would vanish in the middle of a measurement.
+        // The statistics card (INFO, MENU, or More): centred at the top, over the header it hides while
+        // open. It is not tied to the controls: it is opened to read, and a card that faded with the bar
+        // would vanish in the middle of a measurement.
         infoCard = new InfoCard(this, ui);
         final CoordinatorLayout.LayoutParams infoLp = new CoordinatorLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        infoLp.gravity = Gravity.START | Gravity.TOP;
+        infoLp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
         infoCard.setLayoutParams(infoLp);
         coordinatorLayout.addView(infoCard);
 
@@ -2544,26 +2523,11 @@ public class PlayerActivity extends Activity {
                     transferView.setLayoutParams(transferParams);
                 }
 
-                // Mirror of the Skip pill on the other edge: the stats panel floats on the same coordinator,
-                // so its left edge needs the same grid the header and the bottom bar are padded to — a raw
-                // margin from the screen edge lands it in the display cutout's strip in landscape.
-                if (statsView != null) {
-                    final CoordinatorLayout.LayoutParams statsParams =
-                            (CoordinatorLayout.LayoutParams) statsView.getLayoutParams();
-                    statsParams.leftMargin = insetH + ui.gridH();
-                    // The panel is centred vertically, which is where the play/pause cluster lives, so its
-                    // width has to stop short of it: half the window, less half that cluster (hero disc plus
-                    // an episode arrow beside it) and the panel's own offset. A decoder name longer than
-                    // that wraps instead of sliding under the buttons.
-                    statsView.setMaxWidth(ui.dp(getResources().getConfiguration().screenWidthDp) / 2
-                            - ui.heroBox() / 2 - ui.episodeDisc() - statsParams.leftMargin);
-                    statsView.setLayoutParams(statsParams);
-                }
                 if (infoCard != null) {
                     final CoordinatorLayout.LayoutParams infoParams =
                             (CoordinatorLayout.LayoutParams) infoCard.getLayoutParams();
                     infoParams.leftMargin = insetH + ui.gridH();
-                    infoParams.topMargin = windowInsets.getSystemWindowInsetTop() + ui.dpS(12);
+                    infoParams.topMargin = windowInsets.getSystemWindowInsetTop() + ui.dpS(6);
                     infoParams.rightMargin = insetH + ui.gridH();
                     infoCard.setLayoutParams(infoParams);
                 }
@@ -3316,7 +3280,7 @@ public class PlayerActivity extends Activity {
         // The statistics card is the first thing Back closes, on every device: it is a read-only overlay
         // and nothing under it is waiting for the press.
         if (infoCardOpen) {
-            closeInfoCard();
+            hideInfoCardForFile();
             return;
         }
         // On TV the remote's Back is pressed mid-interaction all the time, so it has to consume what is
@@ -3671,6 +3635,10 @@ public class PlayerActivity extends Activity {
                 }
                 return true;
             case KeyEvent.KEYCODE_INFO:
+            // The Shield remote has no INFO; its menu key reaches the app as MENU once the remote's own
+            // setting sends it there. Before, MENU fell into default: and only raised the controls,
+            // which any other key does too.
+            case KeyEvent.KEYCODE_MENU:
                 if (event.getRepeatCount() == 0) {
                     toggleInfoCard();
                 }
@@ -6347,24 +6315,55 @@ public class PlayerActivity extends Activity {
         if (endsAtView != null) {
             endsAtView.setVisibility(View.GONE);
         }
-        if (statsView != null) {
-            statsView.setVisibility(View.GONE);
-        }
         if (transferView != null) {
             transferView.setVisibility(View.GONE);
         }
     }
 
+    /**
+     * INFO, MENU or the menu row: the statistics switch, remembered for the next file and the next start.
+     * It goes by what is on screen, so a card Back has hidden comes back on the first press rather than
+     * the switch going off unseen.
+     */
     private void toggleInfoCard() {
         if (infoCardOpen) {
             closeInfoCard();
-        } else if (haveMedia && player != null && infoCard != null) {
-            infoCardOpen = true;
-            updateInfoCard();
-            playerView.postDelayed(infoCardRunnable, 1000);
+            mPrefs.updateInfoCardOpen(false);
+        } else if (openInfoCard()) {
+            infoCardHiddenUri = null;
+            mPrefs.updateInfoCardOpen(true);
         }
     }
 
+    /**
+     * Back: the card goes for this file only. Back is also the way out of the player, so if it switched
+     * statistics off, they could never outlive the file they were turned on in.
+     */
+    private void hideInfoCardForFile() {
+        closeInfoCard();
+        infoCardHiddenUri = currentPlayingUri();
+    }
+
+    /** Reopens the card while statistics are on, once the file has a decoder to report. */
+    private void restoreInfoCard() {
+        if (mPrefs.infoCardOpen && !infoCardOpen
+                && (infoCardHiddenUri == null || !infoCardHiddenUri.equals(currentPlayingUri()))) {
+            openInfoCard();
+        }
+    }
+
+    private boolean openInfoCard() {
+        if (!haveMedia || player == null || infoCard == null || inPip) {
+            return false;
+        }
+        infoCardOpen = true;
+        setHeaderHidden(true);
+        updateInfoCard();
+        playerView.postDelayed(infoCardRunnable, 1000);
+        return true;
+    }
+
+    /** Closes without touching the remembered state: the file ended or PiP began, nobody asked. */
     private void closeInfoCard() {
         infoCardOpen = false;
         if (playerView != null) {
@@ -6372,6 +6371,22 @@ public class PlayerActivity extends Activity {
         }
         if (infoCard != null) {
             infoCard.setVisibility(View.GONE);
+        }
+        setHeaderHidden(false);
+    }
+
+    /**
+     * The card covers the header's band, so the header and the corner clock step aside while it is open.
+     * By alpha, not visibility: visibility is theirs, set by the controls and the media lifecycle, and
+     * the card must not have to know when they would have been shown.
+     */
+    private void setHeaderHidden(boolean hidden) {
+        final float alpha = hidden ? 0f : 1f;
+        if (topInfoPanel != null) {
+            topInfoPanel.setAlpha(alpha);
+        }
+        if (overlayClock != null) {
+            overlayClock.setAlpha(alpha);
         }
     }
 
@@ -6413,32 +6428,53 @@ public class PlayerActivity extends Activity {
                     (codec != null ? codec + " · " : "") + video.width + "×" + video.height);
             final float fps = videoFrameRate();
             videoSection.row(getString(R.string.stats_l_framerate), fps > 0 ? rate(fps) + " fps" : null);
+            // One label for both, the source in the value: the container's own figure for the stream when it
+            // has one, else the file size over the duration — a different, coarser number, and it says so.
             if (video.bitrate != Format.NO_VALUE) {
-                videoSection.row(getString(R.string.stats_l_stream),
-                        getString(R.string.quality_bitrate, video.bitrate / 1_000_000f));
+                videoSection.row(getString(R.string.stats_l_bitrate), getString(R.string.stats_v_stream) + " "
+                        + getString(R.string.quality_bitrate, video.bitrate / 1_000_000f));
             } else {
                 final float overall = overallBitrate();
                 if (overall > 0) {
-                    videoSection.row(getString(R.string.stats_l_average),
-                            getString(R.string.quality_bitrate, overall));
+                    videoSection.row(getString(R.string.stats_l_bitrate), getString(R.string.stats_v_average)
+                            + " " + getString(R.string.quality_bitrate, overall));
                 }
             }
             if (videoDecoderName != null) {
-                videoSection.row(getString(R.string.stats_l_decoder),
-                        getString(decodedInSoftware(video) ? R.string.stats_v_software : R.string.stats_v_hardware)
-                                + " · " + videoDecoderName);
+                final boolean software = decodedInSoftware(video);
+                final String kind = getString(software ? R.string.stats_v_software : R.string.stats_v_hardware);
+                videoSection.row(getString(R.string.stats_l_decoder), kind + " · " + videoDecoderName,
+                        software ? InfoCard.Tone.WARN : InfoCard.Tone.GOOD, kind.length());
             }
+            final boolean dolbyVisionDecoder = isDolbyVisionDecoder(videoDecoderName);
             final ColorInfo colorInfo = video.colorInfo;
-            if (colorInfo != null) {
+            if (dolbyVisionDecoder) {
+                // The format's transfer is the base layer's PQ, so reading it would call a Dolby Vision
+                // picture HDR10 — which is exactly what the card is there to tell apart.
+                videoSection.row(getString(R.string.stats_l_range), "Dolby Vision", InfoCard.Tone.GOOD);
+            } else if (colorInfo != null) {
                 final String range = colorInfo.colorTransfer == C.COLOR_TRANSFER_ST2084 ? "HDR10 (PQ)"
                         : colorInfo.colorTransfer == C.COLOR_TRANSFER_HLG ? "HLG" : "SDR";
                 videoSection.row(getString(R.string.stats_l_range), range);
             }
-            videoSection.row(getString(R.string.stats_l_dv), dolbyVisionStatus());
+            final String dvStatus = dolbyVisionStatus();
+            if (dvStatus != null) {
+                // A drop to HDR10 the viewer did not ask for (decoder failed, no profile 8 decoder, rewrite
+                // refused) is the one worth a look; the same drop by their own setting is as intended.
+                final boolean fellBack = dvStatus.contains("→ HDR10") && !dvStatus.contains("by setting");
+                videoSection.row(getString(R.string.stats_l_dv), dvStatus,
+                        fellBack ? InfoCard.Tone.WARN : InfoCard.Tone.PLAIN);
+            } else if (dolbyVisionDecoder) {
+                final int profile = dolbyVisionProfile(video.codecs);
+                videoSection.row(getString(R.string.stats_l_dv),
+                        (profile > 0 ? "DV " + profile : "DV") + " · native");
+            }
         }
         final DecoderCounters counters = player.getVideoDecoderCounters();
         if (counters != null) {
-            videoSection.row(getString(R.string.stats_l_dropped), String.valueOf(counters.droppedBufferCount));
+            final int dropped = counters.droppedBufferCount;
+            videoSection.row(getString(R.string.stats_l_dropped), String.valueOf(dropped),
+                    dropped > 0 ? InfoCard.Tone.WARN : InfoCard.Tone.PLAIN);
         }
         sections.add(videoSection);
 
@@ -6453,7 +6489,7 @@ public class PlayerActivity extends Activity {
                     (codec != null ? codec : "") + (channels != null ? " · " + channels : "")
                             + (audio.sampleRate > 0 ? " · " + rate(audio.sampleRate / 1000f) + " kHz" : ""));
             if (audio.bitrate != Format.NO_VALUE) {
-                audioSection.row(getString(R.string.stats_l_stream),
+                audioSection.row(getString(R.string.stats_l_bitrate),
                         String.format(Locale.US, "%d kbps", Math.round(audio.bitrate / 1000f)));
             }
             final boolean bitstream = audioSink != null && audioSink.isPassthrough();
@@ -6497,50 +6533,6 @@ public class PlayerActivity extends Activity {
                 getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
         infoCard.setSections(sections, landscape);
         infoCard.setVisibility(View.VISIBLE);
-    }
-
-    /**
-     * The stats panel's text. Deliberately only what the header does not already say — it is on screen at
-     * the same time, and repeating "1080p H264" there would be noise. What is left is the figures that
-     * move and the decoder names the coarse codec label hides.
-     *
-     * <p>The transfer figures (buffer, network, bitrate) are listed here only while the transfer line is
-     * off: with it on they have their own place above the seek bar, and nothing is said twice.
-     */
-    private void updateStats() {
-        if (statsView == null) {
-            return;
-        }
-        if (!mPrefs.showStats || player == null || !controllerChromeVisible || inPip) {
-            fadeChrome(statsView, false);
-            return;
-        }
-        final List<String> lines = new ArrayList<>();
-        final Format video = player.getVideoFormat();
-        if (!mPrefs.showTransfer) {
-            lines.add(bufferText());
-            addIfAny(lines, networkText());
-        }
-        if (video != null) {
-            lines.add(video.width + "×" + video.height);
-            // Its own line rather than a third field: the panel has to stay narrower than the gap to the
-            // centred transport buttons, and every line here is kept short enough to never wrap.
-            if (!mPrefs.showTransfer) {
-                addIfAny(lines, bitrateText(video));
-            }
-        }
-        // The mime says "hevc"; only the decoder name says whether that went to the vendor's hardware
-        // codec or to a software one, which is the whole question behind most "it stutters" reports.
-        // One per line: the two of them on one line was the panel's widest content by a wide margin.
-        addIfAny(lines, videoDecoderName);
-        addIfAny(lines, audioDecoderName);
-        addIfAny(lines, dolbyVisionStatus());
-        final DecoderCounters counters = player.getVideoDecoderCounters();
-        if (counters != null) {
-            lines.add(getString(R.string.stats_dropped, counters.droppedBufferCount));
-        }
-        statsView.setText(TextUtils.join("\n", lines));
-        fadeChrome(statsView, true);
     }
 
     /**
@@ -6605,12 +6597,6 @@ public class PlayerActivity extends Activity {
         }
     }
 
-    private static void addIfAny(List<String> list, @Nullable String value) {
-        if (value != null) {
-            list.add(value);
-        }
-    }
-
     /**
      * Ahead of the playhead, against the load control's target — the "how much slack is there" reading.
      * On a local file this is always full, which is itself the answer.
@@ -6652,6 +6638,30 @@ public class PlayerActivity extends Activity {
      * on the two boxes this was chased across it was the only instrument that did.
      */
     @Nullable
+    /**
+     * Whether the video went to a Dolby Vision decoder rather than the plain HEVC/AVC one, read from the
+     * name: {@code OMX.Nvidia.DOVI.decode} on the Shield, {@code c2.amlogic.dolby…dvhe…} on Amlogic.
+     */
+    private static boolean isDolbyVisionDecoder(@Nullable String decoderName) {
+        if (decoderName == null) {
+            return false;
+        }
+        final String name = decoderName.toLowerCase(Locale.ROOT);
+        return name.contains("dovi") || name.contains("dolby") || name.contains("dvhe") || name.contains("dvav");
+    }
+
+    /** {@code dvhe.08.06} → 8; 0 when the codec string does not carry one. */
+    private static int dolbyVisionProfile(@Nullable String codecs) {
+        if (codecs == null || codecs.length() < 7 || codecs.charAt(4) != '.') {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(codecs.substring(5, 7));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     private String dolbyVisionStatus() {
         // Outranks the rest: if the recovery fired there was no conversion by definition, and the whole
         // session past it is the base layer whatever the converter had decided before.
@@ -10843,14 +10853,13 @@ public class PlayerActivity extends Activity {
             items.add(new Dialogs.MenuItem(R.drawable.ic_together_24dp, getString(R.string.together_title),
                     togetherSummary(), false, this::showTogetherMenu));
         }
-        // Rides the stats panel: the details it reports are the ones on screen, and the row would be
-        // noise for everyone who has not asked for them. From the menu rather than a long-press on the
-        // panel, so it is reachable with a D-pad and the panel stays free of touch handling.
         if (player != null) {
             items.add(new Dialogs.MenuItem(R.drawable.ic_info_24dp,
                     getString(R.string.stats_title), null, false, this::toggleInfoCard));
         }
-        if (player != null && mPrefs.showStats) {
+        // Rides the statistics card: the details it reports are the ones on screen, and the row would be
+        // noise for everyone who has not opened it.
+        if (player != null && infoCardOpen) {
             items.add(new Dialogs.MenuItem(R.drawable.ic_content_copy_24dp,
                     getString(R.string.stats_report_title), null, false, this::showPlayerState));
         }
@@ -11864,7 +11873,6 @@ public class PlayerActivity extends Activity {
             applyVolumeMode();
             updateSubtitleStyle(this);
             updateOverlayClock();
-            updateStats();
             resetDim();
             // Coming back from the settings screen no longer rebuilds the player by itself (see onStop),
             // but options like the decoder priority or tunneling are baked into it at build time. So
@@ -13903,6 +13911,9 @@ public class PlayerActivity extends Activity {
                     + (player != null ? " index=" + player.getCurrentMediaItemIndex() : "")
                     + (mediaItem != null && mediaItem.localConfiguration != null
                     ? " media=" + Utils.reportUri(mediaItem.localConfiguration.uri, mPrefs.maskReports) : ""));
+            // A card Back hid on the last episode comes back on this one: the decoder may well carry
+            // over without a fresh init, so onVideoDecoderInitialized alone would miss it.
+            restoreInfoCard();
             // The mode for a new item is asked for once its format is readable, in onVideoSizeChanged.
             // Not for the file a session opens with — the loading branch does that one — and not for a
             // list that changed under the item already playing, which is the same picture as before.
