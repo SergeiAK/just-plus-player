@@ -36,6 +36,17 @@ Built from the Just+ 2.0.11 source, the last one published upstream: the officia
  * **The frame rate is measured by its commonest step,** not the average, so a broadcast recording that drops a field now and then still reads 25 fps and not 49.5
  * Every setting has a hint line under it saying what it is for
 
+**Statistics**
+
+ * **A statistics card** in place of the side panel: Menu or INFO on the remote (on a phone, More → Statistics) opens one grouped view of video, audio, display and buffer/network — format, frame rate, bitrate, hardware or software decoder, SDR / HDR10 / HLG / Dolby Vision with its profile, the display mode and the rule that chose it
+ * **A mode, not a one-off.** Once switched on, the card opens by itself on the next file and after a restart, until the same key switches it off; Back hides it for the current file only
+ * **Dropped frames over the last minute** next to the total (`12 · last minute: 0`), counted all through playback and reset on a seek. Hardware decoding and native Dolby Vision are shown in green, software decoding and dropped frames in yellow
+ * On a Shield the ≡ key reaches the app only when the remote's settings send it as Menu
+
+**Video decoding**
+
+ * **A software video decoder** (FFmpeg 7.1, LGPL) for what the device's own decoders refuse: MPEG-4 ASP (XviD and DivX, GMC and quarter-pixel included), H.263, MS-MPEG-4 v2/v3 (DivX 3), VC-1, MPEG-1/2 and MJPEG. It steps in only after the platform decoder has failed on a file, so what plays in hardware stays there. Output is 8-bit SDR without deinterlacing. Build script and JNI source are in `ffvideo/`
+
 **Resume**
 
  * **Ask where to start.** A setting chooses between asking when a file is opened (the default), asking for every video, always resuming and always starting over. A film past 95 % of its length, or past the start of end credits no longer than 15 % of it, counts as watched and starts over; in the asking modes under 30 seconds watched also starts over without a question
