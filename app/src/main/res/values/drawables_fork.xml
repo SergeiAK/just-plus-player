@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Media3's subtitle button images, pointed at the outlined glyph (see ic_subtitles_outline_24dp).
-         Aliases of Media3's own names, so whatever Media3 sets on the button lands on this one. -->
-    <drawable name="exo_styled_controls_subtitle_off">@drawable/ic_subtitles_outline_24dp</drawable>
-    <drawable name="exo_styled_controls_subtitle_on">@drawable/ic_subtitles_outline_24dp</drawable>
-</resources>
