@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- On the white disc a focused button wears (PlayerActivity.styleClusterButton): dark, whether the
+         control is on or off. The disc says where the remote is, the accent ink says what is on, and
+         neither borrows the other's mark. -->
+    <item android:state_focused="true" android:color="#FF1A1A1A" />
+    <item android:state_selected="true" android:color="?attr/colorPrimary" />
+    <item android:color="@color/white" />
+</selector>
